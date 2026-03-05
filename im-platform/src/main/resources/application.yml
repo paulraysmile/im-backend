@@ -1,0 +1,69 @@
+server:
+  port: 8888
+  compression:
+    #是否对响应数据开启gzip压缩,默认false
+    enabled: true
+    #响应内容长度超过设置大小时进行压缩,默认值为2048(2KB,不带单位时默认为字节)
+    min-response-size: 10KB
+    #对指定的响应类型进行压缩,值是数组,用逗号隔开
+    mime-types: application/json
+
+spring:
+  profiles:
+    active: dev # 环境 dev|test|prod
+  application:
+    name: im-platform
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  jackson:
+    time-zone: GMT+8 # 东八区时区
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: AUTO # ID自增
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  configuration:
+    map-underscore-to-camel-case: true  #开启自动驼峰命名规则
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+notify:
+  enable: false # 是否开启推送功能
+  debug: false # 调试模式,生产环境必须关闭，华为手机在调试模式下，一天可发送500条消息
+  app-name: 盒子IM # app名称，也是默认title
+  package-name: com.boxim # 应用包名，跟unipush后台配置的一致
+  active-days: 30   # 用户最近活跃天数，30天内未登录的用户不推送
+  max-size: 99   # 最大消息数量,未读数量超过此值不再推送，-1表示不限制
+  uni-push:
+    # unipush的应用配置，需自行注册申请
+    app-id: nyK71XQYUy9s7Vlzoutlp1
+    app-key: XtG6NkUSL9xxxxLSE0jYA
+    master-secret: MxApXxxxx57jcPCeC0cXk6
+  manufacturer:
+    # 消息分类开通参考: https://docs.getui.com/getui/mobile/vendor/qps/
+    xm-channel-id: 130751 # 小米消息类别channelId
+    hw-category: IM # 华为消息类别
+    op-category: IM # oppo消息类别
+    vv-category: IM # vivo消息类别
+
+jwt:
+  accessToken:
+    expireIn: 1800 #半个小时
+    secret: MIIBIjANBgkq  # 跟im-server的secret必须一致
+  refreshToken:
+    expireIn: 604800 #7天
+    secret: IKDiqVmn0VFU
+
+app:
+  version: 3.12.0
+  change-log:
+    - 1.支持文件预览
+    - 2.群聊提示语优化，支持昵称高亮
+    - 3.输入框支持草稿缓存
+    - 4.其他细节优化
+

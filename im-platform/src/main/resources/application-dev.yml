@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/im_platform?useSSL=false&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+minio:
+  endpoint: http://127.0.0.1:9000 #内网地址
+  domain: http://127.0.0.1:9000  #外网访问地址
+  accessKey: minioadmin
+  secretKey: minioadmin
+  bucketName: box-im
+  imagePath: image
+  filePath: file
+  videoPath: video
+  expireIn: 180 # 文件过期时间,单位:天
+
+webrtc:
+  max-channel: 9 # 多人通话最大通道数量，最大不能超过16,建议值:4,9,16
+  iceServers:
+    - urls: stun:stun.l.google.com:19302
+
+sms:
+  platform: aliyun  # 目前仅支持阿里云短信
+  access-key:
+  secret-key:
+  sign-name: xxx科技 # 短信签名,需在阿里云控制台审核通过
+  template-id: SMS_481125065 # 短信模版id,验证码变量必须为: ${code}
+
+mail:
+  host: smtp.163.com
+  port: 465
+  ssl: true
+  name: 广州联盒科技
+  from: xxx@163.com  # 发送方邮箱
+  pass: BWhJQ9xxx36qKhq # 授权码，邮箱后台开启授权后获得
+  subject: '您收到一条验证码'
+  content: '您好，本次邮箱验证码为: ${code}，该验证码5分钟内有效，请勿泄露于他人'
+
+registration:
+  mode:
+    - username #用户名注册
+    - phone # 手机注册,需开启短信功能
+    - email # 邮箱注册,需开启短信功能
+  ip-limit:
+    enabled: false # 是否启用IP注册限制
+    max-count: 5 # 每个IP允许注册的最大用户数量（永久限制）

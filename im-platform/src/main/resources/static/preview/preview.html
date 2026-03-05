@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>文件预览</title>
+	<link rel="stylesheet" href="static/common/css/main.css">
+	<link rel="stylesheet" href="static/common/css/audio.css">
+	<link rel="stylesheet" href="static/luckysheet/css/pluginsCss.css">
+	<link rel="stylesheet" href="static/luckysheet/css/plugins.css">
+	<link rel="stylesheet" href="static/luckysheet/css/luckysheet.css">
+	<link rel="stylesheet" href="static/luckysheet/css/iconfont.css">
+	<link rel="stylesheet" href="static/pptxjs/css/pptxjs.css">
+	<link rel="stylesheet" href="static/pptxjs/css/nv.d3.min.css">
+	<link rel="stylesheet" href="static/viewer/viewer.css">
+</head>
+
+<body>
+	<!-- 加载中提示 -->
+	<div id="loading-mask" class="loading-mask">
+		<div class="loading-content">
+			<div class="loading-spinner"></div>
+			<div class="loading-text">加载中...</div>
+		</div>
+	</div>
+
+	<div id="el-app">
+		<div id="container">
+		</div>
+	</div>
+
+	<!-- built files will be auto injected -->
+
+	<script type="text/javascript" src="static/jquery-2.0.3.min.js"></script>
+	<script type="text/javascript" src="static/jPreview.js"></script>
+	<script>
+		// 隐藏加载提示的函数
+		function hideLoading() {
+			var loadingMask = document.getElementById('loading-mask');
+			if (loadingMask && loadingMask.style) {
+				loadingMask.style.opacity = '0';
+				loadingMask.style.display = 'none';
+			}
+		}
+
+		// 监听容器内容变化，当有内容加载时隐藏加载提示
+		var observer = new MutationObserver(function (mutations) {
+			var container = document.getElementById('container');
+			if (container && container.children.length > 0) {
+				// 延迟一下，确保内容已渲染
+				setTimeout(hideLoading, 500);
+				observer.disconnect();
+			}
+		});
+
+		// 开始预览
+		jPreview.preview({
+			container: "container", // 容器id
+			staticPath: "./static", // 静态资源路径
+			url: "", // 预览资源路径，没有的话获取url中scr参数
+			ext: "",  // 资源后缀，如果url中没有的话，必须传入后缀名，否则无法识别文件类型
+			name: "",  // 资源名称
+			watermarkTxt: "", // 水印文字
+			watermarkSize: "", // 水印文字大小
+			priority: 1, // office文档优先级 1：使用插件预览 2：使用office在线预览，
+			//oburl:"https://view.officeapps.live.com/op/embed.aspx?src=", // 可设置三方office线上预览地址，.ppt和.doc需要三方支持，要么不带此参数，要么就要填写一个其他的地址，不能传空，传空将无法预览不支持的文件。
+		});
+
+		// 监听容器变化
+		var container = document.getElementById('container');
+		observer.observe(container, {
+			childList: true,
+			subtree: true
+		});
+
+		// 页面加载完成后，如果5秒后还没隐藏，则自动隐藏
+		window.addEventListener('load', function () {
+			setTimeout(hideLoading, 5000);
+		});
+	</script>
+	<style>
+		.loading-mask {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgba(255, 255, 255, 0.95);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 9999;
+			transition: opacity 0.3s ease;
+		}
+
+		.loading-content {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.loading-spinner {
+			width: 50px;
+			height: 50px;
+			border: 4px solid rgba(62, 69, 215, 0.2);
+			border-top: 4px solid #3e45d7;
+			border-radius: 50%;
+			animation: spin 1s linear infinite;
+		}
+
+		.loading-text {
+			margin-top: 20px;
+			font-size: 16px;
+			color: #666;
+		}
+
+		@keyframes spin {
+			0% {
+				transform: rotate(0deg);
+			}
+
+			100% {
+				transform: rotate(360deg);
+			}
+		}
+	</style>
+</body>
+
+</html>
