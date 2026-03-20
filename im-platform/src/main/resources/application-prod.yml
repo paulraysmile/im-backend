@@ -2,19 +2,19 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/im_platform?useSSL=false&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true
-    username: root
-    password: naQRLdDPbGv2j7PX_
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
   data:
     redis:
       host: localhost
       port: 6379
-      password: PmEpfRjpBnTN6CgW
+      password: ${REDIS_PASSWORD:}
 
 minio:
-  endpoint: http://127.0.0.1:9001 #内网地址
-  domain: https://www.boxim.online/file  #外网访问地址
-  accessKey: admin
-  secretKey: 3fBSt6AkgFuD77D6
+  endpoint: http://127.0.0.1:9001 # 内网地址
+  domain: https://www.boxim.online/file # 外网访问地址
+  accessKey: ${MINIO_ACCESS_KEY:}
+  secretKey: ${MINIO_SECRET_KEY:}
   bucketName: box-im
   imagePath: image
   filePath: file
@@ -23,34 +23,61 @@ minio:
 
 webrtc:
   max-channel: 9 # 多人通话最大通道数量，最大不能超过16,建议值:4,9,16
-  iceServers:   #coturn配置
+  iceServers:
     - urls: stun:www.boxim.online:3478
-      username: admin
-      credential: UrHHKNvE7nFvBTMV
+      username: ${WEBRTC_STUN_USERNAME:}
+      credential: ${WEBRTC_STUN_CREDENTIAL:}
     - urls: turn:www.boxim.online:3478
-      username: admin
-      credential: UrHHKNvE7nFvBTMV
+      username: ${WEBRTC_TURN_USERNAME:}
+      credential: ${WEBRTC_TURN_CREDENTIAL:}
 
 sms:
-  platform: aliyun  # 目前仅支持阿里云短信
-  access-key:
-  secret-key:
-  sign-name: xxx科技 # 短信签名,需在阿里云控制台审核通过
-  template-id: SMS_495985518 # 短信模版id,验证码变量必须为: ${code}
+  platform: aliyun # 目前仅支持阿里云短信（aliyun）、亚马逊短信（aws）
+  access-key: ${SMS_ACCESS_KEY:}
+  secret-key: ${SMS_SECRET_KEY:}
+  sign-name: ${SMS_SIGN_NAME:xxx科技} # 阿里云短信签名
+  template-id: ${SMS_TEMPLATE_ID:SMS_495985518} # 阿里云短信模板ID
+  message: '您好，本次短信验证码为: ${code}，该验证码5分钟内有效，请勿泄露于他人'
 
 mail:
   host: smtp.163.com
   port: 465
   ssl: true
   name: 广州联盒科技
-  from: xxx@163.com  # 发送方邮箱
-  pass: BWhJQ9xxx36qKhq # 授权码，邮箱后台开启授权后获得
+  from: ${MAIL_FROM:}
+  pass: ${MAIL_PASS:}
   subject: '您收到一条验证码'
   content: '您好，本次邮箱验证码为: ${code}，该验证码5分钟内有效，请勿泄露于他人'
 
+#aws:
+#  mail:
+#    platform: aws
+#    access-key: ${AWS_MAIL_ACCESS_KEY:}
+#    secret-key: ${AWS_MAIL_SECRET_KEY:}
+#    region: ap-southeast-1
+#    from: no-reply.support@novemchat.com
+#  sms:
+#    access-key: ${AWS_SMS_ACCESS_KEY:}
+#    secret-key: ${AWS_SMS_SECRET_KEY:}
+#    send-id:
+#    promotional-number:
+
+notify:
+  enable: true # 必须开启，否则 NotifyCheckAspect 会拦截所有离线推送
+  uni-push:
+    enabled: false # 仅用 APNs，不启用个推
+  apns:
+    enabled: true
+    key-id: ${APNS_KEY_ID:}
+    team-id: ${APNS_TEAM_ID:}
+    bundle-id: ${APNS_BUNDLE_ID:}
+    key-path: ${APNS_KEY_PATH:/opt/apns/AuthKey_DU2B5355Z3.p8}
+    production: true
+
 registration:
+  require-phone-email-captcha: false
   mode:
-    - username #用户名注册
+    - username # 用户名注册
     - phone # 手机注册,需开启短信功能
     - email # 邮箱注册,需开启短信功能
   ip-limit:

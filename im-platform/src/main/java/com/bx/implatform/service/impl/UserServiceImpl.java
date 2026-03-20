@@ -15,11 +15,14 @@ import com.bx.implatform.config.props.NotifyProperties;
 import com.bx.implatform.config.props.RegistrationProperties;
 import com.bx.implatform.contant.RedisKey;
 import com.bx.implatform.dto.*;
+import com.bx.implatform.entity.Company;
 import com.bx.implatform.entity.Friend;
 import com.bx.implatform.entity.GroupMember;
+import com.bx.implatform.entity.InviteCode;
 import com.bx.implatform.entity.User;
 import com.bx.implatform.enums.*;
 import com.bx.implatform.exception.GlobalException;
+import com.bx.implatform.mapper.CompanyMapper;
 import com.bx.implatform.mapper.UserMapper;
 import com.bx.implatform.service.*;
 import com.bx.implatform.session.SessionContext;
@@ -29,7 +32,6 @@ import com.bx.implatform.vo.LoginVO;
 import com.bx.implatform.vo.SystemMessageVO;
 import com.bx.implatform.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.Lists;
 import org.apache.logging.log4j.util.Strings;
@@ -47,7 +49,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final PasswordEncoder passwordEncoder;
@@ -55,6 +56,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final GroupMemberService groupMemberService;
     private final UserBlacklistService userBlacklistService;
     private final FriendService friendService;
+    private final InviteCodeService inviteCodeService;
+    private final CompanyMapper companyMapper;
     private final JwtProperties jwtProps;
     private final NotifyProperties notifyProps;
     private final RegistrationProperties registrationProps;
@@ -64,11 +67,53 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final SensitiveFilterUtil sensitiveFilterUtil;
     private final HttpServletRequest request;
 
+    /**
+     * 显式构造器：避免仅依赖 Lombok 时部分 IDE 解析失败，误报「缺少返回类型」等级联语法错误。
+     */
+    public UserServiceImpl(
+        PasswordEncoder passwordEncoder,
+        GroupService groupService,
+        GroupMemberService groupMemberService,
+        UserBlacklistService userBlacklistService,
+        FriendService friendService,
+        InviteCodeService inviteCodeService,
+        CompanyMapper companyMapper,
+        JwtProperties jwtProps,
+        NotifyProperties notifyProps,
+        RegistrationProperties registrationProps,
+        IMClient imClient,
+        RedisTemplate<String, Object> redisTemplate,
+        CaptchaService captchaService,
+        SensitiveFilterUtil sensitiveFilterUtil,
+        HttpServletRequest request
+    ) {
+        this.passwordEncoder = passwordEncoder;
+        this.groupService = groupService;
+        this.groupMemberService = groupMemberService;
+        this.userBlacklistService = userBlacklistService;
+        this.friendService = friendService;
+        this.inviteCodeService = inviteCodeService;
+        this.companyMapper = companyMapper;
+        this.jwtProps = jwtProps;
+        this.notifyProps = notifyProps;
+        this.registrationProps = registrationProps;
+        this.imClient = imClient;
+        this.redisTemplate = redisTemplate;
+        this.captchaService = captchaService;
+        this.sensitiveFilterUtil = sensitiveFilterUtil;
+        this.request = request;
+    }
+
     @Override
     public LoginVO login(LoginDTO dto) {
-        User user = this.findUserByLoginName(dto.getUserName());
+        InviteCode inv = inviteCodeService.getByCodeForLogin(dto.getInviteCode());
+        if (inv == null) {
+            throw new GlobalException("邀请码无效");
+        }
+        Long companyId = inv.getCompanyId();
+        User user = this.findUserByLoginName(dto.getUserName(), companyId);
         if (Objects.isNull(user)) {
-            log.warn("用户不存在,name:{}", dto.getUserName());
+            log.warn("用户不存在,name:{},companyId:{}", dto.getUserName(), companyId);
             throw new GlobalException("用户不存在");
         }
         if (user.getStatus().equals(UserStatus.UN_REG.getValue())) {
@@ -111,7 +156,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!JwtUtil.checkSign(refreshToken, jwtProps.getRefreshTokenSecret())) {
             throw new GlobalException("您的登录信息已过期，请重新登录");
         }
-        String strJson = JwtUtil.getInfo(refreshToken);
         Long userId = JwtUtil.getUserId(refreshToken);
         User user = this.getById(userId);
         if (Objects.isNull(user)) {
@@ -125,6 +169,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setLastLoginIp(ip);
         user.setLastLoginTime(new Date());
         this.updateById(user);
+        // 保留原 token 中的终端类型，并从 DB 同步企业、昵称等
+        UserSession session = JSON.parseObject(JwtUtil.getInfo(refreshToken), UserSession.class);
+        session.setUserId(user.getId());
+        session.setUserName(user.getUserName());
+        session.setNickName(user.getNickName());
+        session.setCompanyId(user.getCompanyId());
+        String strJson = JSON.toJSONString(session);
         String accessToken =
             JwtUtil.sign(userId, strJson, jwtProps.getAccessTokenExpireIn(), jwtProps.getAccessTokenSecret());
         String newRefreshToken =
@@ -143,10 +194,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (StrUtil.isEmpty(dto.getNickName())) {
             dto.setNickName(dto.getUserName());
         }
-        User user = this.findUserByUserName(dto.getUserName());
-        if (!Objects.isNull(user)) {
-            throw new GlobalException(ResultCode.USERNAME_ALREADY_REGISTER);
-        }
         // 校验用户名
         if (RegexUtil.isPhone(dto.getUserName()) || RegexUtil.isEmail(dto.getUserName())) {
             throw new GlobalException("用户名不合法");
@@ -157,17 +204,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!dto.getNickName().equals(sensitiveFilterUtil.filter(dto.getNickName()))) {
             throw new GlobalException("昵称包含敏感字符");
         }
-        user = new User();
+        // 邀请码校验并解析企业
+        InviteCode inv = inviteCodeService.getValidByCode(dto.getInviteCode());
+        if (inv == null) {
+            throw new GlobalException("邀请码无效或已失效");
+        }
+        Company company = companyMapper.selectById(inv.getCompanyId());
+        if (company == null) {
+            throw new GlobalException("企业不存在");
+        }
+        Long companyId = company.getId();
+        User existName = this.findUserByUserName(dto.getUserName(), companyId);
+        if (existName != null) {
+            throw new GlobalException(ResultCode.USERNAME_ALREADY_REGISTER);
+        }
+        User user = new User();
         // 手机、验证码校验
         if (RegisterMode.PHONE.getCode().equals(dto.getMode())) {
             if (!RegexUtil.isPhone(dto.getPhone())) {
                 throw new GlobalException("手机号格式不合法");
             }
-            if (isExistPhone(dto.getPhone())) {
+            if (isExistPhone(dto.getPhone(), companyId)) {
                 throw new GlobalException("该手机号已被注册");
             }
-            if (!captchaService.vertify(CaptchaType.SMS, dto.getPhone(), dto.getCode())) {
-                throw new GlobalException("验证码错误");
+            if (Boolean.TRUE.equals(registrationProps.getRequirePhoneEmailCaptcha())) {
+                if (!captchaService.vertify(CaptchaType.SMS, dto.getPhone(), dto.getCode())) {
+                    throw new GlobalException("验证码错误");
+                }
             }
             user.setPhone(dto.getPhone());
         }
@@ -176,28 +239,54 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             if (!RegexUtil.isEmail(dto.getEmail())) {
                 throw new GlobalException("邮箱格式不合法");
             }
-            if (isExistEmail(dto.getEmail())) {
+            if (isExistEmail(dto.getEmail(), companyId)) {
                 throw new GlobalException("该邮箱已被注册");
             }
-            if (!captchaService.vertify(CaptchaType.MAIL, dto.getEmail(), dto.getCode())) {
-                throw new GlobalException("验证码错误");
+            if (Boolean.TRUE.equals(registrationProps.getRequirePhoneEmailCaptcha())) {
+                if (!captchaService.vertify(CaptchaType.MAIL, dto.getEmail(), dto.getCode())) {
+                    throw new GlobalException("验证码错误");
+                }
             }
             user.setEmail(dto.getEmail());
         }
-        // 保存用户信息
+        persistRegisteredUser(dto, company, user);
+    }
+
+    /** 校验 IP、写库字段并保存新用户（拆出方法便于 IDE/维护） */
+    private void persistRegisteredUser(RegisterDTO dto, Company company, User newUser) {
         String ip = JakartaServletUtil.getClientIP(request);
         if (StrUtil.isEmpty(ip)) {
             throw new GlobalException("您的IP地址异常,无法注册");
         }
-        // IP注册限制检查
-        checkIpRegisterLimit(ip);
-        user.setLastLoginIp(ip);
-        user.setLastLoginTime(new Date());
-        user.setUserName(dto.getUserName());
-        user.setNickName(dto.getNickName());
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        this.save(user);
-        log.info("注册用户，用户id:{},用户名:{},昵称:{},IP:{}", user.getId(), dto.getUserName(), dto.getNickName(), ip);
+        this.checkIpRegisterLimit(ip);
+        newUser.setLastLoginIp(ip);
+        newUser.setLastLoginTime(new Date());
+        newUser.setUserName(dto.getUserName());
+        newUser.setNickName(dto.getNickName());
+        newUser.setPassword(passwordEncoder.encode(dto.getPassword()));
+        newUser.setCompanyId(company.getId());
+        newUser.setCompanyName(company.getName());
+        this.save(newUser);
+        log.info("注册用户，用户id:{},用户名:{},昵称:{},IP:{}", newUser.getId(), dto.getUserName(), dto.getNickName(), ip);
+    }
+
+    /** IP 注册次数上限（与下方私有方法放近处，减少部分 IDE 跨段解析误报「方法未定义」） */
+    private void checkIpRegisterLimit(String ip) {
+        RegistrationProperties.IpLimit ipLimit = registrationProps.getIpLimit();
+        if (ipLimit == null || !Boolean.TRUE.equals(ipLimit.getEnabled()) || isLocalAddress(ip)) {
+            return;
+        }
+        LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(User::getLastLoginIp, ip);
+        wrapper.eq(User::getStatus, UserStatus.NORMAL.getValue());
+        if (this.count(wrapper) >= ipLimit.getMaxCount()) {
+            log.warn("IP注册限制：IP {} 已达到注册上限 {} 个用户", ip, ipLimit.getMaxCount());
+            throw new GlobalException(String.format("您已注册%d个账号，已达到上限", ipLimit.getMaxCount()));
+        }
+    }
+
+    private static boolean isLocalAddress(String ip) {
+        return "127.0.0.1".equals(ip) || "localhost".equals(ip);
     }
 
     @Transactional
@@ -248,23 +337,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public void resetPassword(ResetPwdDTO dto) {
+        InviteCode inv = inviteCodeService.getByCodeForLogin(dto.getInviteCode());
+        if (inv == null) {
+            throw new GlobalException("邀请码无效");
+        }
+        Long companyId = inv.getCompanyId();
         if (RegisterMode.PHONE.getCode().equals(dto.getMode())) {
-            // 手机验证码校验
-            resetPwdByPhone(dto.getPhone(), dto.getCode(), dto.getPassword());
+            resetPwdByPhone(dto.getPhone(), dto.getCode(), dto.getPassword(), companyId);
         } else if (RegisterMode.EMAIL.getCode().equals(dto.getMode())) {
-            // 邮箱验证码校验
-            resetPwdByEmail(dto.getEmail(), dto.getCode(), dto.getPassword());
+            resetPwdByEmail(dto.getEmail(), dto.getCode(), dto.getPassword(), companyId);
         } else {
             throw new GlobalException("不支持该密码重置方式");
         }
     }
 
-    private void resetPwdByPhone(String phone, String code, String password) {
-        // 手机验证码校验
+    private void resetPwdByPhone(String phone, String code, String password, Long companyId) {
         if (!captchaService.vertify(CaptchaType.SMS, phone, code)) {
             throw new GlobalException("验证码错误");
         }
-        User user = findUserByPhone(phone);
+        User user = findUserByPhone(phone, companyId);
         if (Objects.isNull(user)) {
             throw new GlobalException("该手机号未注册");
         }
@@ -273,12 +364,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.info("通过手机重置用户密码，用户id:{},用户名:{}", user.getId(), user.getUserName());
     }
 
-    private void resetPwdByEmail(String email, String code, String password) {
-        // 手机验证码校验
+    private void resetPwdByEmail(String email, String code, String password, Long companyId) {
         if (!captchaService.vertify(CaptchaType.MAIL, email, code)) {
             throw new GlobalException("验证码错误");
         }
-        User user = findUserByEmail(email);
+        User user = findUserByEmail(email, companyId);
         if (Objects.isNull(user)) {
             throw new GlobalException("该邮箱未注册");
         }
@@ -288,52 +378,69 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public User findUserByUserName(String username) {
+    public User findUserByUserName(String username, Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getUserName, username);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.getOne(queryWrapper);
     }
 
     @Override
-    public User findUserByPhone(String phone) {
+    public User findUserByPhone(String phone, Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getPhone, phone);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.getOne(queryWrapper);
     }
 
     @Override
-    public User findUserByEmail(String email) {
+    public User findUserByEmail(String email, Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getEmail, email);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.getOne(queryWrapper);
     }
 
     @Override
-    public User findUserByLoginName(String loginName) {
-        // 优先用户名登陆
-        User user = findUserByUserName(loginName);
-        // 手机号登陆
+    public User findUserByLoginName(String loginName, Long companyId) {
+        User user = findUserByUserName(loginName, companyId);
         if (Objects.isNull(user) && RegexUtil.isPhone(loginName)) {
-            user = findUserByPhone(loginName);
+            user = findUserByPhone(loginName, companyId);
         }
-        // 邮箱登陆
         if (Objects.isNull(user) && RegexUtil.isEmail(loginName)) {
-            user = findUserByEmail(loginName);
+            user = findUserByEmail(loginName, companyId);
         }
         return user;
     }
 
     @Override
-    public Boolean isExistPhone(String phone) {
+    public Boolean isExistPhone(String phone, Long companyId) {
+        if (companyId == null) {
+            return false;
+        }
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getPhone, phone);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.exists(queryWrapper);
     }
 
     @Override
-    public Boolean isExistEmail(String email) {
+    public Boolean isExistEmail(String email, Long companyId) {
+        if (companyId == null) {
+            return false;
+        }
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getEmail, email);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.exists(queryWrapper);
     }
 
@@ -376,7 +483,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setHeadImage(vo.getHeadImage());
         user.setHeadImageThumb(vo.getHeadImageThumb());
         this.updateById(user);
-        log.info("用户信息更新，用户:{}}", user);
+        log.info("用户信息更新，用户:{}", user);
     }
 
     @Override
@@ -387,7 +494,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.warn("用户不存在,id:{}", id);
             throw new GlobalException("用户不存在");
         }
-        UserVO vo = convert(user);
+        if (session.getCompanyId() != null && user.getCompanyId() != null
+            && !session.getCompanyId().equals(user.getCompanyId())) {
+            throw new GlobalException("用户不存在");
+        }
+        UserVO vo = toUserVo(user);
         vo.setOnline(imClient.isOnline(id));
         vo.setIsInBlacklist(userBlacklistService.isInBlacklist(session.getUserId(), id));
         return vo;
@@ -404,34 +515,44 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public List<UserVO> findUserByName(String name) {
+        UserSession session = SessionContext.getSession();
+        Long companyId = session.getCompanyId();
+        if (companyId == null) {
+            return Lists.newArrayList();
+        }
         LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(User::getCompanyId, companyId);
         wrapper.eq(User::getIsBanned, false);
         wrapper.eq(User::getStatus, UserStatus.NORMAL.getValue());
         wrapper.and(wp -> wp.like(User::getUserName, name).or().like(User::getNickName, name));
         wrapper.last("limit 20");
-        List<User> users = this.list(wrapper);
-        return convert(users);
+        List<User> rows = this.list(wrapper);
+        return mapUsersToVoList(rows);
     }
 
     @Override
     public List<UserVO> search(String name) {
-        if (RegexUtil.isPhone(name)) {
-            // 查询手机号
-            User user = findUserByPhone(name);
-            if (!Objects.isNull(user)) {
-                return convert(List.of(user));
-            }
-        } else if (RegexUtil.isEmail(name)) {
-            // 查询邮箱
-            User user = findUserByEmail(name);
-            if (!Objects.isNull(user)) {
-                return convert(List.of(user));
-            }
-        } else {
-            // 查询用户名和昵称
-            return findUserByName(name);
+        UserSession session = SessionContext.getSession();
+        Long companyId = session.getCompanyId();
+        if (companyId == null) {
+            return Lists.newArrayList();
         }
-        return Lists.newArrayList();
+        // 拆成独立 if，避免部分 IDE 对 if/else if 大括号配对误报
+        if (RegexUtil.isPhone(name)) {
+            User userByPhone = findUserByPhone(name, companyId);
+            if (userByPhone != null) {
+                return mapUsersToVoList(Collections.singletonList(userByPhone));
+            }
+            return Lists.newArrayList();
+        }
+        if (RegexUtil.isEmail(name)) {
+            User userByEmail = findUserByEmail(name, companyId);
+            if (userByEmail != null) {
+                return mapUsersToVoList(Collections.singletonList(userByEmail));
+            }
+            return Lists.newArrayList();
+        }
+        return findUserByName(name);
     }
 
     @Transactional
@@ -512,7 +633,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!RegexUtil.isPhone(dto.getPhone())) {
             throw new GlobalException("手机号格式不合法");
         }
-        if (isExistPhone(dto.getPhone())) {
+        if (isExistPhone(dto.getPhone(), user.getCompanyId())) {
             throw new GlobalException("该手机号已被注册");
         }
         if (!captchaService.vertify(CaptchaType.SMS, dto.getPhone(), dto.getCode())) {
@@ -533,7 +654,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!RegexUtil.isEmail(dto.getEmail())) {
             throw new GlobalException("邮箱格式不合法");
         }
-        if (isExistEmail(dto.getEmail())) {
+        if (isExistEmail(dto.getEmail(), user.getCompanyId())) {
             throw new GlobalException("该邮箱已被注册");
         }
         if (!captchaService.vertify(CaptchaType.MAIL, dto.getEmail(), dto.getCode())) {
@@ -552,17 +673,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         this.update(wrapper);
     }
 
-    List<UserVO> convert(List<User> users) {
+    /** 将多条 {@link User} 转为 {@link UserVO} 列表（名称避免与单条 {@link #toUserVo} 在 IDE 中混淆） */
+    private List<UserVO> mapUsersToVoList(List<User> users) {
         List<Long> userIds = users.stream().map(User::getId).collect(Collectors.toList());
         List<Long> onlineUserIds = imClient.getOnlineUser(userIds);
         return users.stream().map(u -> {
-            UserVO vo = convert(u);
+            UserVO vo = toUserVo(u);
             vo.setOnline(onlineUserIds.contains(u.getId()));
             return vo;
         }).collect(Collectors.toList());
     }
 
-    private UserVO convert(User user) {
+    private UserVO toUserVo(User user) {
         UserVO vo = BeanUtils.copyProperties(user, UserVO.class);
         // 邮箱和手机号做脱敏处理
         vo.setPhone(DesensitizeUtil.desensitizePhone(vo.getPhone()));
@@ -580,23 +702,5 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             }
             throw new GlobalException(tip);
         }
-    }
-
-    private void checkIpRegisterLimit(String ip) {
-        RegistrationProperties.IpLimit ipLimit = registrationProps.getIpLimit();
-        if (!ipLimit.getEnabled() || isLocalAddress(ip)) {
-            return;
-        }
-        LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(User::getLastLoginIp, ip);
-        wrapper.eq(User::getStatus, UserStatus.NORMAL.getValue());
-        if (this.count(wrapper) >= ipLimit.getMaxCount()) {
-            log.warn("IP注册限制：IP {} 已达到注册上限 {} 个用户", ip, ipLimit.getMaxCount());
-            throw new GlobalException(String.format("您已注册%d个账号，已达到上限", ipLimit.getMaxCount()));
-        }
-    }
-
-    private Boolean isLocalAddress(String ip) {
-        return ip.equals("127.0.0.1") || ip.equals("localhost");
     }
 }

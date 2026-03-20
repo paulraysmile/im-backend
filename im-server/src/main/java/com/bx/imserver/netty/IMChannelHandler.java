@@ -68,22 +68,33 @@ public class IMChannelHandler extends SimpleChannelInboundHandler<IMSendInfo> {
         Long userId = ctx.channel().attr(userIdAttr).get();
         AttributeKey<Integer> terminalAttr = AttributeKey.valueOf(ChannelAttrKey.TERMINAL_TYPE);
         Integer terminal = ctx.channel().attr(terminalAttr).get();
-        ChannelHandlerContext context = UserChannelCtxMap.getChannelCtx(userId, terminal);
-        // 判断一下，避免异地登录导致的误删
+        AttributeKey<String> devIdAttr = AttributeKey.valueOf(ChannelAttrKey.DEVICE_ID);
+        String devId = ctx.channel().attr(devIdAttr).get();
+        ChannelHandlerContext context = UserChannelCtxMap.getChannelCtx(userId, terminal, devId);
+        if (context == null) {
+            context = UserChannelCtxMap.getChannelCtx(userId, terminal);
+        }
+        // 判断一下，避免误删
         if (context != null && ctx.channel().id().equals(context.channel().id())) {
-            // 移除channel
-            UserChannelCtxMap.removeChannelCtx(userId, terminal);
-            // 用户下线
+            UserChannelCtxMap.removeChannelCtx(userId, terminal, devId);
             RedisMQTemplate redisTemplate = SpringContextHolder.getBean(RedisMQTemplate.class);
-            String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
-            redisTemplate.delete(key);
-            // 推送用户下线事件给业务层
+            if (terminal != null && terminal.equals(1)) {
+                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
+                redisTemplate.delete(key);
+            } else {
+                String webKey = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(),
+                    terminal != null ? terminal.toString() : "0",
+                    devId == null || devId.isEmpty() ? "default" : devId);
+                redisTemplate.delete(webKey);
+            }
             IMUserEvent event = new IMUserEvent();
             event.setEventType(IMEventType.OFFLINE.code());
-            event.setUserInfo(new IMUserInfo(userId,terminal));
-            key = ChatRedisKey.IM_USER_EVENT_QUEUE;
+            IMUserInfo userInfo = new IMUserInfo(userId, terminal);
+            userInfo.setDeviceId(devId);
+            event.setUserInfo(userInfo);
+            String key = ChatRedisKey.IM_USER_EVENT_QUEUE;
             redisTemplate.opsForList().rightPush(key, event);
-            log.info("断开连接,userId:{},终端类型:{},{}", userId, terminal, ctx.channel().id().asLongText());
+            log.info("断开连接,userId:{},终端:{},设备:{},{}", userId, terminal, devId, ctx.channel().id().asLongText());
         }
     }
 

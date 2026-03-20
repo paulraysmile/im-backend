@@ -12,6 +12,11 @@ import org.hibernate.validator.constraints.Length;
 @Schema(description = "用户注册DTO")
 public class RegisterDTO {
 
+    @Pattern(regexp = PatternText.INVITE_CODE, message = "邀请码为6位数字或字母")
+    @NotEmpty(message = "邀请码不可为空")
+    @Schema(description = "邀请码，6位数字或字母，用于绑定企业")
+    private String inviteCode;
+
     @Schema(description = "注册方式, username:用户名注册, phone:手机注册,email: 邮箱注册")
     private String mode = RegisterMode.USER_NAME.getCode() ;
 
@@ -38,7 +43,7 @@ public class RegisterDTO {
     @Schema(description = "用户昵称")
     private String nickName;
 
-    @Schema(description = "验证码")
+    @Schema(description = "验证码；手机/邮箱注册且 registration.require-phone-email-captcha=true 时必填")
     private String code;
 
 }

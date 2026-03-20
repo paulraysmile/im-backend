@@ -1,0 +1,16 @@
+-- 企业分表说明与建表模板
+-- 每个企业使用独立表：im_private_message_c_{companyId}、im_group_c_{companyId}、im_group_member_c_{companyId}、im_group_message_c_{companyId}
+-- 当 SessionContext 中 companyId 不为空时，MyBatis-Plus 动态表名会路由到上述表；companyId 为空时使用原表（兼容历史数据）。
+--
+-- 新增企业后，需为该企业创建上述四张表（将 {company_id} 替换为实际企业 id，如 1、2）：
+--
+-- CREATE TABLE `im_private_message_c_{company_id}` LIKE `im_private_message`;
+-- CREATE TABLE `im_group_c_{company_id}` LIKE `im_group`;
+-- CREATE TABLE `im_group_member_c_{company_id}` LIKE `im_group_member`;
+-- CREATE TABLE `im_group_message_c_{company_id}` LIKE `im_group_message`;
+--
+-- 示例（企业 id=1）：
+-- CREATE TABLE `im_private_message_c_1` LIKE `im_private_message`;
+-- CREATE TABLE `im_group_c_1` LIKE `im_group`;
+-- CREATE TABLE `im_group_member_c_1` LIKE `im_group_member`;
+-- CREATE TABLE `im_group_message_c_1` LIKE `im_group_message`;

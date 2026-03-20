@@ -22,6 +22,10 @@ spring:
       max-request-size: 50MB
   jackson:
     time-zone: GMT+8 # 东八区时区
+# 注册策略（nove_admin 后台可后续对接改库或配置中心）
+registration:
+  require-phone-email-captcha: false # 手机/邮箱注册是否强制验证码，默认不强制
+
 mybatis-plus:
   global-config:
     db-config:

@@ -29,31 +29,64 @@ public class IMSender {
     private final MessageListenerMulticaster listenerMulticaster;
 
     public <T> void sendSystemMessage(IMSystemMessage<T> message) {
-        // 根据群聊每个成员所连的IM-server，进行分组
+        // 按 IM-server 分组；WEB 多设备按 deviceId 展开
         Map<String, IMUserInfo> sendMap = new HashMap<>();
-        for (Integer terminal : message.getRecvTerminals()) {
-            message.getRecvIds().forEach(id -> {
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString());
-                sendMap.put(key, new IMUserInfo(id, terminal));
-            });
-        }
-        // 批量拉取
-        List<Object> serverIds = redisMQTemplate.opsForValue().multiGet(sendMap.keySet());
-        // 格式:map<服务器id,list<接收方>>
-        Map<Integer, List<IMUserInfo>> serverMap = new HashMap<>();
         List<IMUserInfo> offLineUsers = new LinkedList<>();
+        for (Integer terminal : message.getRecvTerminals()) {
+            for (Long id : message.getRecvIds()) {
+                if (IMTerminalType.APP.code().equals(terminal)) {
+                    String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString());
+                    sendMap.put(key, new IMUserInfo(id, terminal));
+                } else {
+                    String pattern = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString(), "*");
+                    Set<String> keys = redisMQTemplate.keys(pattern);
+                    if (keys != null && !keys.isEmpty()) {
+                        for (String k : keys) {
+                            Object sid = redisMQTemplate.opsForValue().get(k);
+                            if (sid == null) {
+                                continue;
+                            }
+                            String deviceId = k.contains(":") ? k.substring(k.lastIndexOf(':') + 1) : "";
+                            if ("default".equals(deviceId)) {
+                                deviceId = "";
+                            }
+                            IMUserInfo u = new IMUserInfo(id, terminal);
+                            u.setDeviceId(deviceId);
+                            sendMap.put(k, u);
+                        }
+                    } else {
+                        offLineUsers.add(new IMUserInfo(id, terminal));
+                    }
+                }
+            }
+        }
+        if (sendMap.isEmpty()) {
+            if (message.getSendResult() && !offLineUsers.isEmpty()) {
+                List<IMSendResult> results = new LinkedList<>();
+                for (IMUserInfo u : offLineUsers) {
+                    IMSendResult r = new IMSendResult();
+                    r.setReceiver(u);
+                    r.setCode(IMSendCode.NOT_ONLINE.code());
+                    r.setData(message.getData());
+                    results.add(r);
+                }
+                listenerMulticaster.multicast(IMListenerType.SYSTEM_MESSAGE, results);
+            }
+            return;
+        }
+        List<Object> serverIds = redisMQTemplate.opsForValue().multiGet(sendMap.keySet());
+        Map<Integer, List<IMUserInfo>> serverMap = new HashMap<>();
         int idx = 0;
         for (Map.Entry<String, IMUserInfo> entry : sendMap.entrySet()) {
-            Integer serverId = (Integer)serverIds.get(idx++);
-            if (!Objects.isNull(serverId)) {
-                List<IMUserInfo> list = serverMap.computeIfAbsent(serverId, o -> new LinkedList<>());
-                list.add(entry.getValue());
+            Object sid = idx < serverIds.size() ? serverIds.get(idx) : null;
+            idx++;
+            Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+            if (serverId != null) {
+                serverMap.computeIfAbsent(serverId, o -> new LinkedList<>()).add(entry.getValue());
             } else {
-                // 加入离线列表
                 offLineUsers.add(entry.getValue());
             }
         }
-        // 逐个server发送
         for (Map.Entry<Integer, List<IMUserInfo>> entry : serverMap.entrySet()) {
             IMRecvInfo recvInfo = new IMRecvInfo();
             recvInfo.setCmd(IMCmdType.SYSTEM_MESSAGE.code());
@@ -61,11 +94,9 @@ public class IMSender {
             recvInfo.setServiceName(appName);
             recvInfo.setSendResult(message.getSendResult());
             recvInfo.setData(message.getData());
-            // 推送至队列
             String key = String.join(":", ChatRedisKey.IM_MESSAGE_SYSTEM_QUEUE, entry.getKey().toString());
             redisMQTemplate.opsForList().rightPush(key, recvInfo);
         }
-        // 对离线用户回复消息状态
         if (message.getSendResult() && !offLineUsers.isEmpty()) {
             List<IMSendResult> results = new LinkedList<>();
             for (IMUserInfo offLineUser : offLineUsers) {
@@ -83,90 +114,163 @@ public class IMSender {
         List<IMSendResult> results = new LinkedList<>();
         if (!Objects.isNull(message.getRecvId())) {
             for (Integer terminal : message.getRecvTerminals()) {
-                // 获取对方连接的channelId
-                String key =
-                    String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getRecvId().toString(), terminal.toString());
-                Integer serverId = (Integer)redisMQTemplate.opsForValue().get(key);
-                // 如果对方在线，将数据存储至redis，等待拉取推送
-                if (serverId != null) {
-                    String sendKey = String.join(":", ChatRedisKey.IM_MESSAGE_PRIVATE_QUEUE, serverId.toString());
-                    IMRecvInfo recvInfo = new IMRecvInfo();
-                    recvInfo.setCmd(IMCmdType.PRIVATE_MESSAGE.code());
-                    recvInfo.setSendResult(message.getSendResult());
-                    recvInfo.setServiceName(appName);
-                    recvInfo.setSender(message.getSender());
-                    recvInfo.setReceivers(Collections.singletonList(new IMUserInfo(message.getRecvId(), terminal)));
-                    recvInfo.setData(message.getData());
-                    redisMQTemplate.opsForList().rightPush(sendKey, recvInfo);
+                if (IMTerminalType.APP.code().equals(terminal)) {
+                    // APP 单设备：单 key
+                    String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getRecvId().toString(),
+                        terminal.toString());
+                    Object sid = redisMQTemplate.opsForValue().get(key);
+                    Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+                    if (serverId != null) {
+                        pushPrivateToServer(message, serverId, Collections.singletonList(
+                            new IMUserInfo(message.getRecvId(), terminal)), message.getSendResult());
+                    } else {
+                        results.add(makeOfflineResult(message.getSender(), message.getRecvId(), terminal, message.getData()));
+                    }
                 } else {
-                    IMSendResult result = new IMSendResult();
-                    result.setSender(message.getSender());
-                    result.setReceiver(new IMUserInfo(message.getRecvId(), terminal));
-                    result.setCode(IMSendCode.NOT_ONLINE.code());
-                    result.setData(message.getData());
-                    results.add(result);
+                    // WEB 多设备：枚举 chat:user:server_id:{recvId}:0:* 按 serverId 分组投递
+                    String pattern = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getRecvId().toString(),
+                        terminal.toString(), "*");
+                    Set<String> keys = redisMQTemplate.keys(pattern);
+                    if (keys != null && !keys.isEmpty()) {
+                        Map<Integer, List<IMUserInfo>> serverToReceivers = new HashMap<>();
+                        for (String k : keys) {
+                            Object sid = redisMQTemplate.opsForValue().get(k);
+                            Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+                            if (serverId == null) {
+                                continue;
+                            }
+                            String deviceId = k.contains(":") ? k.substring(k.lastIndexOf(':') + 1) : "";
+                            if ("default".equals(deviceId)) {
+                                deviceId = "";
+                            }
+                            IMUserInfo recv = new IMUserInfo(message.getRecvId(), terminal);
+                            recv.setDeviceId(deviceId);
+                            serverToReceivers.computeIfAbsent(serverId, o -> new LinkedList<>()).add(recv);
+                        }
+                        for (Map.Entry<Integer, List<IMUserInfo>> e : serverToReceivers.entrySet()) {
+                            pushPrivateToServer(message, e.getKey(), e.getValue(), message.getSendResult());
+                        }
+                    } else {
+                        results.add(makeOfflineResult(message.getSender(), message.getRecvId(), terminal, message.getData()));
+                    }
                 }
             }
         }
 
-        // 推送给自己的其他终端
+        // 推送给自己的其他终端（多设备时每个设备一份）
         if (message.getSendToSelf()) {
             for (Integer terminal : IMTerminalType.codes()) {
                 if (message.getSender().getTerminal().equals(terminal)) {
                     continue;
                 }
-                // 获取终端连接的channelId
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
-                    terminal.toString());
-                Integer serverId = (Integer)redisMQTemplate.opsForValue().get(key);
-                // 如果终端在线，将数据存储至redis，等待拉取推送
-                if (serverId != null) {
-                    String sendKey = String.join(":", ChatRedisKey.IM_MESSAGE_PRIVATE_QUEUE, serverId.toString());
-                    IMRecvInfo recvInfo = new IMRecvInfo();
-                    // 自己的消息不需要回推消息结果
-                    recvInfo.setSendResult(false);
-                    recvInfo.setCmd(IMCmdType.PRIVATE_MESSAGE.code());
-                    recvInfo.setSender(message.getSender());
-                    recvInfo.setReceivers(
-                        Collections.singletonList(new IMUserInfo(message.getSender().getId(), terminal)));
-                    recvInfo.setData(message.getData());
-                    redisMQTemplate.opsForList().rightPush(sendKey, recvInfo);
+                if (IMTerminalType.APP.code().equals(terminal)) {
+                    String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
+                        terminal.toString());
+                    Object sid = redisMQTemplate.opsForValue().get(key);
+                    Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+                    if (serverId != null) {
+                        pushPrivateToServer(message, serverId,
+                            Collections.singletonList(new IMUserInfo(message.getSender().getId(), terminal)), false);
+                    }
+                } else {
+                    String pattern = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
+                        terminal.toString(), "*");
+                    Set<String> keys = redisMQTemplate.keys(pattern);
+                    if (keys != null && !keys.isEmpty()) {
+                        Map<Integer, List<IMUserInfo>> serverToReceivers = new HashMap<>();
+                        for (String k : keys) {
+                            Object sid = redisMQTemplate.opsForValue().get(k);
+                            Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+                            if (serverId == null) {
+                                continue;
+                            }
+                            String deviceId = k.contains(":") ? k.substring(k.lastIndexOf(':') + 1) : "";
+                            if ("default".equals(deviceId)) {
+                                deviceId = "";
+                            }
+                            IMUserInfo recv = new IMUserInfo(message.getSender().getId(), terminal);
+                            recv.setDeviceId(deviceId);
+                            serverToReceivers.computeIfAbsent(serverId, o -> new LinkedList<>()).add(recv);
+                        }
+                        for (Map.Entry<Integer, List<IMUserInfo>> e : serverToReceivers.entrySet()) {
+                            pushPrivateToServer(message, e.getKey(), e.getValue(), false);
+                        }
+                    }
                 }
             }
         }
-        // 对离线用户回复消息状态
         if (message.getSendResult() && !results.isEmpty()) {
             listenerMulticaster.multicast(IMListenerType.PRIVATE_MESSAGE, results);
         }
+    }
 
+    private <T> void pushPrivateToServer(IMPrivateMessage<T> message, Integer serverId, List<IMUserInfo> receivers,
+        boolean sendResult) {
+        String sendKey = String.join(":", ChatRedisKey.IM_MESSAGE_PRIVATE_QUEUE, serverId.toString());
+        IMRecvInfo recvInfo = new IMRecvInfo();
+        recvInfo.setCmd(IMCmdType.PRIVATE_MESSAGE.code());
+        recvInfo.setSendResult(sendResult);
+        recvInfo.setServiceName(appName);
+        recvInfo.setSender(message.getSender());
+        recvInfo.setReceivers(receivers);
+        recvInfo.setData(message.getData());
+        redisMQTemplate.opsForList().rightPush(sendKey, recvInfo);
+    }
+
+    private <T> IMSendResult<Object> makeOfflineResult(IMUserInfo sender, Long recvId, Integer terminal, T data) {
+        IMSendResult<Object> result = new IMSendResult<>();
+        result.setSender(sender);
+        result.setReceiver(new IMUserInfo(recvId, terminal));
+        result.setCode(IMSendCode.NOT_ONLINE.code());
+        result.setData(data);
+        return result;
     }
 
     public <T> void sendGroupMessage(IMGroupMessage<T> message) {
-        // 根据群聊每个成员所连的IM-server，进行分组
+        // 根据群聊每个成员所连的 IM-server 分组；WEB 多设备按 deviceId 展开
         Map<String, IMUserInfo> sendMap = new HashMap<>();
-        for (Integer terminal : message.getRecvTerminals()) {
-            message.getRecvIds().forEach(id -> {
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString());
-                sendMap.put(key, new IMUserInfo(id, terminal));
-            });
-        }
-        // 批量拉取
-        List<Object> serverIds = redisMQTemplate.opsForValue().multiGet(sendMap.keySet());
-        // 格式:map<服务器id,list<接收方>>
-        Map<Integer, List<IMUserInfo>> serverMap = new HashMap<>();
         List<IMUserInfo> offLineUsers = new LinkedList<>();
+        for (Integer terminal : message.getRecvTerminals()) {
+            for (Long id : message.getRecvIds()) {
+                if (IMTerminalType.APP.code().equals(terminal)) {
+                    String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString());
+                    sendMap.put(key, new IMUserInfo(id, terminal));
+                } else {
+                    String pattern = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString(), "*");
+                    Set<String> keys = redisMQTemplate.keys(pattern);
+                    if (keys != null && !keys.isEmpty()) {
+                        for (String k : keys) {
+                            Object sid = redisMQTemplate.opsForValue().get(k);
+                            if (sid == null) {
+                                continue;
+                            }
+                            String deviceId = k.contains(":") ? k.substring(k.lastIndexOf(':') + 1) : "";
+                            if ("default".equals(deviceId)) {
+                                deviceId = "";
+                            }
+                            IMUserInfo u = new IMUserInfo(id, terminal);
+                            u.setDeviceId(deviceId);
+                            sendMap.put(k, u);
+                        }
+                    } else {
+                        offLineUsers.add(new IMUserInfo(id, terminal));
+                    }
+                }
+            }
+        }
+        List<Object> serverIds = sendMap.isEmpty() ? Collections.emptyList() : redisMQTemplate.opsForValue().multiGet(sendMap.keySet());
+        Map<Integer, List<IMUserInfo>> serverMap = new HashMap<>();
         int idx = 0;
         for (Map.Entry<String, IMUserInfo> entry : sendMap.entrySet()) {
-            Integer serverId = (Integer)serverIds.get(idx++);
-            if (!Objects.isNull(serverId)) {
-                List<IMUserInfo> list = serverMap.computeIfAbsent(serverId, o -> new LinkedList<>());
-                list.add(entry.getValue());
+            Object sid = serverIds != null && idx < serverIds.size() ? serverIds.get(idx) : null;
+            idx++;
+            Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+            if (serverId != null) {
+                serverMap.computeIfAbsent(serverId, o -> new LinkedList<>()).add(entry.getValue());
             } else {
-                // 加入离线列表
                 offLineUsers.add(entry.getValue());
             }
         }
-        // 逐个server发送
         for (Map.Entry<Integer, List<IMUserInfo>> entry : serverMap.entrySet()) {
             IMRecvInfo recvInfo = new IMRecvInfo();
             recvInfo.setCmd(IMCmdType.GROUP_MESSAGE.code());
@@ -175,37 +279,51 @@ public class IMSender {
             recvInfo.setServiceName(appName);
             recvInfo.setSendResult(message.getSendResult());
             recvInfo.setData(message.getData());
-            // 推送至队列
             String key = String.join(":", ChatRedisKey.IM_MESSAGE_GROUP_QUEUE, entry.getKey().toString());
             redisMQTemplate.opsForList().rightPush(key, recvInfo);
         }
 
-        // 推送给自己的其他终端
         if (message.getSendToSelf()) {
             for (Integer terminal : IMTerminalType.codes()) {
                 if (terminal.equals(message.getSender().getTerminal())) {
                     continue;
                 }
-                // 获取终端连接的channelId
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
-                    terminal.toString());
-                Integer serverId = (Integer)redisMQTemplate.opsForValue().get(key);
-                // 如果终端在线，将数据存储至redis，等待拉取推送
-                if (!Objects.isNull(serverId)) {
-                    IMRecvInfo recvInfo = new IMRecvInfo();
-                    recvInfo.setCmd(IMCmdType.GROUP_MESSAGE.code());
-                    recvInfo.setSender(message.getSender());
-                    recvInfo.setReceivers(
-                        Collections.singletonList(new IMUserInfo(message.getSender().getId(), terminal)));
-                    // 自己的消息不需要回推消息结果
-                    recvInfo.setSendResult(false);
-                    recvInfo.setData(message.getData());
-                    String sendKey = String.join(":", ChatRedisKey.IM_MESSAGE_GROUP_QUEUE, serverId.toString());
-                    redisMQTemplate.opsForList().rightPush(sendKey, recvInfo);
+                if (IMTerminalType.APP.code().equals(terminal)) {
+                    String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
+                        terminal.toString());
+                    Object sid = redisMQTemplate.opsForValue().get(key);
+                    Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+                    if (serverId != null) {
+                        pushGroupToServer(message, serverId, Collections.singletonList(
+                            new IMUserInfo(message.getSender().getId(), terminal)));
+                    }
+                } else {
+                    String pattern = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
+                        terminal.toString(), "*");
+                    Set<String> keys = redisMQTemplate.keys(pattern);
+                    if (keys != null && !keys.isEmpty()) {
+                        Map<Integer, List<IMUserInfo>> byServer = new HashMap<>();
+                        for (String k : keys) {
+                            Object sid = redisMQTemplate.opsForValue().get(k);
+                            Integer serverId = sid instanceof Number ? ((Number) sid).intValue() : null;
+                            if (serverId == null) {
+                                continue;
+                            }
+                            String deviceId = k.contains(":") ? k.substring(k.lastIndexOf(':') + 1) : "";
+                            if ("default".equals(deviceId)) {
+                                deviceId = "";
+                            }
+                            IMUserInfo u = new IMUserInfo(message.getSender().getId(), terminal);
+                            u.setDeviceId(deviceId);
+                            byServer.computeIfAbsent(serverId, o -> new LinkedList<>()).add(u);
+                        }
+                        for (Map.Entry<Integer, List<IMUserInfo>> e : byServer.entrySet()) {
+                            pushGroupToServer(message, e.getKey(), e.getValue());
+                        }
+                    }
                 }
             }
         }
-        // 对离线用户回复消息状态
         if (message.getSendResult() && !offLineUsers.isEmpty()) {
             List<IMSendResult> results = new LinkedList<>();
             for (IMUserInfo offLineUser : offLineUsers) {
@@ -218,34 +336,39 @@ public class IMSender {
             }
             listenerMulticaster.multicast(IMListenerType.GROUP_MESSAGE, results);
         }
+    }
 
+    private <T> void pushGroupToServer(IMGroupMessage<T> message, Integer serverId, List<IMUserInfo> receivers) {
+        IMRecvInfo recvInfo = new IMRecvInfo();
+        recvInfo.setCmd(IMCmdType.GROUP_MESSAGE.code());
+        recvInfo.setSender(message.getSender());
+        recvInfo.setReceivers(receivers);
+        recvInfo.setSendResult(false);
+        recvInfo.setData(message.getData());
+        String sendKey = String.join(":", ChatRedisKey.IM_MESSAGE_GROUP_QUEUE, serverId.toString());
+        redisMQTemplate.opsForList().rightPush(sendKey, recvInfo);
     }
 
     public Map<Long, List<IMTerminalType>> getOnlineTerminal(List<Long> userIds) {
         if (CollUtil.isEmpty(userIds)) {
             return Collections.emptyMap();
         }
-        // 把所有用户的key都存起来
-        Map<String, IMUserInfo> userMap = new HashMap<>();
-        for (Long id : userIds) {
-            for (Integer terminal : IMTerminalType.codes()) {
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString());
-                userMap.put(key, new IMUserInfo(id, terminal));
-            }
-        }
-        // 批量拉取
-        List<Object> serverIds = redisMQTemplate.opsForValue().multiGet(userMap.keySet());
-        int idx = 0;
         Map<Long, List<IMTerminalType>> onlineMap = new HashMap<>();
-        for (Map.Entry<String, IMUserInfo> entry : userMap.entrySet()) {
-            // serverid有值表示用户在线
-            if (serverIds.get(idx++) != null) {
-                IMUserInfo userInfo = entry.getValue();
-                List<IMTerminalType> terminals = onlineMap.computeIfAbsent(userInfo.getId(), o -> new LinkedList<>());
-                terminals.add(IMTerminalType.fromCode(userInfo.getTerminal()));
+        for (Long id : userIds) {
+            List<IMTerminalType> terminals = new LinkedList<>();
+            if (redisMQTemplate.hasKey(String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(),
+                IMTerminalType.APP.code().toString()))) {
+                terminals.add(IMTerminalType.APP);
+            }
+            Set<String> webKeys = redisMQTemplate.keys(String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(),
+                IMTerminalType.WEB.code().toString(), "*"));
+            if (webKeys != null && !webKeys.isEmpty()) {
+                terminals.add(IMTerminalType.WEB);
+            }
+            if (!terminals.isEmpty()) {
+                onlineMap.put(id, terminals);
             }
         }
-        // 去重并返回
         return onlineMap;
     }
 
@@ -261,13 +384,19 @@ public class IMSender {
     }
 
     public Boolean isOnline(Long userId, IMTerminalType terminal) {
-        String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.code().toString());
-        return redisMQTemplate.hasKey(key);
+        if (IMTerminalType.APP.equals(terminal)) {
+            return redisMQTemplate.hasKey(String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.code().toString()));
+        }
+        Set<String> keys = redisMQTemplate.keys(String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(),
+            terminal.code().toString(), "*"));
+        return keys != null && !keys.isEmpty();
     }
 
     public Boolean isOnline(Long userId) {
-        String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), "*");
-        return !Objects.requireNonNull(redisMQTemplate.keys(key)).isEmpty();
+        if (Boolean.TRUE.equals(isOnline(userId, IMTerminalType.APP)) || Boolean.TRUE.equals(isOnline(userId, IMTerminalType.WEB))) {
+            return true;
+        }
+        return false;
     }
 
     public List<Long> getOnlineUser(List<Long> userIds) {

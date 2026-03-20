@@ -56,55 +56,37 @@ public interface UserService extends IService<User> {
     void unregister();
 
     /**
-     * 根据登录名查询用户
+     * 根据登录名查询用户（同一企业内）
      *
-     * @param loginName 登录名
-     * @return 用户信息
+     * @param loginName 登录名：用户名 / 手机号 / 邮箱
+     * @param companyId 企业 id，须与邀请码解析结果一致
      */
-    User findUserByLoginName(String loginName);
-
+    User findUserByLoginName(String loginName, Long companyId);
 
     /**
-     * 根据用户名查询用户
-     *
-     * @param username 用户名
-     * @return 用户信息
+     * 根据用户名查询用户（同一企业内）
      */
-    User findUserByUserName(String username);
-
+    User findUserByUserName(String username, Long companyId);
 
     /**
-     * 根据手机号查询用户
-     *
-     * @param phone 手机号
-     * @return 用户信息
+     * 根据手机号查询用户（同一企业内）
      */
-    User findUserByPhone(String phone);
-
+    User findUserByPhone(String phone, Long companyId);
 
     /**
-     * 根据邮箱查询用户
-     *
-     * @param email 邮箱
-     * @return 用户信息
+     * 根据邮箱查询用户（同一企业内）
      */
-    User findUserByEmail(String email);
+    User findUserByEmail(String email, Long companyId);
 
     /**
-     * 是否存在手机用户
-     *
-     * @param phone 手机号
-     * @return
+     * 该企业下是否已存在该手机号
      */
-    Boolean isExistPhone(String phone);
+    Boolean isExistPhone(String phone, Long companyId);
 
     /**
-     * 是否存在邮箱用户
-     *
-     * @param email 邮箱
-     * @return 用户信息
+     * 该企业下是否已存在该邮箱
      */
-    Boolean isExistEmail(String email);
+    Boolean isExistEmail(String email, Long companyId);
 
     /**
      * 更新用户信息，好友昵称和群聊昵称等冗余信息也会更新

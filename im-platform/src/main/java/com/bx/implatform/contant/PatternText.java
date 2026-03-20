@@ -26,6 +26,9 @@ public class PatternText {
      */
     public static final String NICK_NAME = "^[^\\u202A-\\u202E\\u2066-\\u2069]*$";
 
+    /** 邀请码：6 位数字或字母 */
+    public static final String INVITE_CODE = "^[A-Za-z0-9]{6}$";
+
     /**
      * XSS
      */

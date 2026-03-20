@@ -32,7 +32,8 @@ public class GroupMessageProcessor extends AbstractMessageProcessor<IMRecvInfo> 
         log.info("接收到群消息，发送者:{},接收用户数量:{}，内容:{}", sender.getId(), receivers.size(), recvInfo.getData());
         for (IMUserInfo receiver : receivers) {
             try {
-                ChannelHandlerContext channelCtx = UserChannelCtxMap.getChannelCtx(receiver.getId(), receiver.getTerminal());
+                ChannelHandlerContext channelCtx = UserChannelCtxMap.getChannelCtx(
+                    receiver.getId(), receiver.getTerminal(), receiver.getDeviceId());
                 if (!Objects.isNull(channelCtx)) {
                     // 推送消息到用户
                     IMSendInfo<Object> sendInfo = new IMSendInfo<>();

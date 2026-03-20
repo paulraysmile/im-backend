@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import com.bx.imcommon.contant.ChatConstant;
 import com.bx.imcommon.contant.ChatRedisKey;
 import com.bx.imcommon.enums.IMCmdType;
+import com.bx.imcommon.enums.IMTerminalType;
 import com.bx.imcommon.model.IMHeartbeatInfo;
 import com.bx.imcommon.model.IMSendInfo;
 import com.bx.imcommon.mq.RedisMQTemplate;
@@ -40,8 +41,16 @@ public class HeartbeatProcessor extends AbstractMessageProcessor<IMHeartbeatInfo
             Long userId = ctx.channel().attr(userIdAttr).get();
             AttributeKey<Integer> terminalAttr = AttributeKey.valueOf(ChannelAttrKey.TERMINAL_TYPE);
             Integer terminal = ctx.channel().attr(terminalAttr).get();
-            String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
-            redisMQTemplate.expire(key, ChatConstant.ONLINE_TIMEOUT_SECOND, TimeUnit.SECONDS);
+            AttributeKey<String> devIdAttr = AttributeKey.valueOf(ChannelAttrKey.DEVICE_ID);
+            String devId = ctx.channel().attr(devIdAttr).get();
+            if (IMTerminalType.APP.code().equals(terminal)) {
+                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
+                redisMQTemplate.expire(key, ChatConstant.ONLINE_TIMEOUT_SECOND, TimeUnit.SECONDS);
+            } else {
+                String webKey = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString(),
+                    devId == null || devId.isEmpty() ? "default" : devId);
+                redisMQTemplate.expire(webKey, ChatConstant.ONLINE_TIMEOUT_SECOND, TimeUnit.SECONDS);
+            }
         }
         AttributeKey<Long> userIdAttr = AttributeKey.valueOf(ChannelAttrKey.USER_ID);
         Long userId = ctx.channel().attr(userIdAttr).get();

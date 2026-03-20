@@ -3,7 +3,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/im_platform?useSSL=false&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true
     username: root
-    password: root
+    password: 123456
   data:
     redis:
       host: localhost
@@ -43,6 +43,7 @@ mail:
   content: '您好，本次邮箱验证码为: ${code}，该验证码5分钟内有效，请勿泄露于他人'
 
 registration:
+  require-phone-email-captcha: false # true 时手机/邮箱注册必须校验验证码
   mode:
     - username #用户名注册
     - phone # 手机注册,需开启短信功能

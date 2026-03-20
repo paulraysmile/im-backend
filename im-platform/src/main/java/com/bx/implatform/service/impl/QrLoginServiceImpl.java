@@ -139,6 +139,7 @@ public class QrLoginServiceImpl implements QrLoginService {
         newSession.setUserId(session.getUserId());
         newSession.setUserName(session.getUserName());
         newSession.setNickName(session.getNickName());
+        newSession.setCompanyId(session.getCompanyId());
         newSession.setTerminal(IMTerminalType.WEB.code()); // Web终端
         String strJson = JSON.toJSONString(newSession);
         String accessToken = JwtUtil.sign(session.getUserId(), strJson, jwtProperties.getAccessTokenExpireIn(),

@@ -23,9 +23,9 @@ create table `im_user` (
   `last_login_time` datetime default null comment '最后登录时间',
   `last_login_ip` varchar(64) default null comment '最后登陆ip',
   `created_time` datetime default current_timestamp comment '创建时间',
-  unique key `idx_user_name` (user_name),
-  unique key `idx_phone` (phone),
-  unique key `idx_email` (email),
+  unique key `uk_company_user_name` (company_id, user_name),
+  unique key `uk_company_phone` (company_id, phone),
+  unique key `uk_company_email` (company_id, email),
   key `idx_nick_name` (nick_name),
   key `idx_last_login_ip` (last_login_ip)
 ) engine = innodb charset = utf8mb4 comment '用户';
@@ -221,6 +221,18 @@ create table im_company (
   `creator` bigint comment '创建者',
   `create_time` datetime comment '创建时间'
 ) engine = innodb charset = utf8mb4 comment '企业信息';
+
+-- 邀请码表：6 位数字或字母，注册时校验并绑定企业，实现企业分表
+create table `im_invite_code` (
+  `id` bigint not null auto_increment primary key comment 'id',
+  `code` varchar(16) not null comment '邀请码，6位数字或字母',
+  `company_id` bigint not null comment '关联企业id',
+  `enabled` tinyint(1) default 1 comment '是否启用 0:否 1:是',
+  `create_time` datetime default current_timestamp comment '创建时间',
+  `remark` varchar(255) default '' comment '备注',
+  unique key `uk_code` (`code`),
+  key `idx_company_id` (`company_id`)
+) engine = innodb charset = utf8mb4 comment '邀请码';
 
 create table `im_sticker_album` (
   `id` bigint(20) not null auto_increment comment '专辑id',

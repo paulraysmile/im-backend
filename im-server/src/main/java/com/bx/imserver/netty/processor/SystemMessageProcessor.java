@@ -30,7 +30,7 @@ public class SystemMessageProcessor extends AbstractMessageProcessor<IMRecvInfo>
         for (IMUserInfo receiver : recvInfo.getReceivers()) {
             try {
                 ChannelHandlerContext channelCtx =
-                    UserChannelCtxMap.getChannelCtx(receiver.getId(), receiver.getTerminal());
+                    UserChannelCtxMap.getChannelCtx(receiver.getId(), receiver.getTerminal(), receiver.getDeviceId());
                 if (!Objects.isNull(channelCtx)) {
                     // 推送消息到用户
                     IMSendInfo<Object> sendInfo = new IMSendInfo<>();
