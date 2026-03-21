@@ -192,4 +192,9 @@ public final class RedisKey {
      */
     public static final String IM_FRIEND_APPLY_COUNT = "chat:friend:apply:count";
 
+    /**
+     * 动态提醒已读时间戳（毫秒）
+     */
+    public static final String IM_TALK_READED_TIME = "chat:talk:readed:time";
+
 }

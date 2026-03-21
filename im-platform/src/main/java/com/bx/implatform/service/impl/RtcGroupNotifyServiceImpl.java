@@ -17,6 +17,7 @@ import com.bx.implatform.thirdparty.UniPushService;
 import com.bx.implatform.vo.GroupMessageVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -38,13 +39,17 @@ public class RtcGroupNotifyServiceImpl implements RtcGroupNotifyService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final GroupService groupService;
-    private final UniPushService uniPushService;
+    @Autowired(required = false)
+    private UniPushService uniPushService;
     private final IMClient imClient;
     private final String prefix = "[多人通话] ";
 
     @NotifyCheck
     @Override
     public void setUp(Group group, WebrtcUserInfo inviter, List<Long> recvIds) {
+        if (uniPushService == null) {
+            return;
+        }
         recvIds = filterOfflineApp(recvIds);
         Map<Long, String> cidMap = getCId(recvIds);
         if (cidMap.isEmpty()) {
@@ -64,6 +69,9 @@ public class RtcGroupNotifyServiceImpl implements RtcGroupNotifyService {
     @NotifyCheck
     @Override
     public void stop(Long groupId, List<Long> recvIds, String tip) {
+        if (uniPushService == null) {
+            return;
+        }
         recvIds = filterOfflineApp(recvIds);
         Map<Long, String> cidMap = getCId(recvIds);
         if (cidMap.isEmpty()) {
@@ -80,7 +88,7 @@ public class RtcGroupNotifyServiceImpl implements RtcGroupNotifyService {
     @NotifyCheck
     @Override
     public void stop(Long groupId, Long recvId, String tip) {
-        if (imClient.isOnline(recvId, IMTerminalType.APP)) {
+        if (uniPushService == null || imClient.isOnline(recvId, IMTerminalType.APP)) {
             return;
         }
         String cid = getCid(recvId);

@@ -87,6 +87,7 @@ create table `im_group` (
   `is_all_muted` tinyint(1) default 0 comment '是否开启全体禁言 0:否 1:是',
   `is_allow_invite` tinyint(1) default 1 comment '是否允许普通成员邀请好友 0:否 1:是',
   `is_allow_share_card` tinyint(1) default 1 comment '是否允许普通成员分享名片 0:否 1:是',
+  `is_allow_add_other` tinyint(1) default 1 comment '是否允许普通成员群内互相加好友 0:否 1:是',
   `is_banned` tinyint(1) default 0 comment '是否被封禁 0:否 1:是',
 	`unban_time` datetime default null comment '解除封禁时间',
   `reason` varchar(255) default '' comment '被封禁原因',
@@ -284,6 +285,41 @@ create table `im_realname_auth` (
   key `idx_user_id` (`user_id`),
   key `idx_auth_time` (`auth_time`)
 ) engine = innodb default charset = utf8mb4 comment = '用户实名认证';
+
+create table `im_talk` (
+  `id` bigint not null auto_increment primary key comment 'id',
+  `user_id` bigint not null comment '发布者用户id',
+  `content` text comment '动态内容',
+  `visible_scope` tinyint not null comment '可见范围: 1-私密 2-好友可见 9-公开',
+  `address` varchar(255) default '' comment '地址',
+  `latitude` decimal(10, 7) default null comment '纬度',
+  `longitude` decimal(10, 7) default null comment '经度',
+  `files` text comment '附件列表JSON，含fileType、url、coverUrl',
+  `create_time` datetime default current_timestamp comment '创建时间',
+  key `idx_user_id` (`user_id`),
+  key `idx_created_time` (`created_time`)
+) engine = innodb charset = utf8mb4 comment = '朋友圈动态';
+
+create table `im_talk_star` (
+  `id` bigint not null auto_increment primary key comment 'id',
+  `talk_id` bigint not null comment '动态id',
+  `user_id` bigint not null comment '用户id',
+  `created_time` datetime default current_timestamp comment '创建时间',
+  unique key `uk_talk_user` (`talk_id`, `user_id`),
+  key `idx_talk_id` (`talk_id`)
+) engine = innodb charset = utf8mb4 comment = '动态点赞';
+
+create table `im_talk_comment` (
+  `id` bigint not null auto_increment primary key comment 'id',
+  `talk_id` bigint not null comment '动态id',
+  `user_id` bigint not null comment '评论用户id',
+  `content` text not null comment '评论内容',
+  `reply_comment_id` bigint default null comment '回复的评论id',
+  `reply_user_id` bigint default null comment '回复用户id',
+  `type` tinyint not null comment '评论类型: 0-文字 1-图片 5-语音台词',
+  `created_time` datetime default current_timestamp comment '创建时间',
+  key `idx_talk_id` (`talk_id`)
+) engine = innodb charset = utf8mb4 comment = '动态评论';
 
 create table `im_message_deletion` (
   `id` bigint not null auto_increment primary key comment 'id',

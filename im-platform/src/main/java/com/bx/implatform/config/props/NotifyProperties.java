@@ -29,6 +29,4 @@ public class NotifyProperties {
     private UnipushProperties unipush;
 
     private ManufacturerProperties manufacturer;
-
-
 }

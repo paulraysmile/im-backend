@@ -17,6 +17,7 @@ import com.bx.implatform.thirdparty.UniPushService;
 import com.bx.implatform.vo.PrivateMessageVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +33,8 @@ public class RtcPrivateNotifyServiceImpl implements RtcPrivateNotifyService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserService userService;
-    private final UniPushService uniPushService;
+    @Autowired(required = false)
+    private UniPushService uniPushService;
     private final IMClient imClient;
 
     @NotifyCheck
@@ -42,7 +44,7 @@ public class RtcPrivateNotifyServiceImpl implements RtcPrivateNotifyService {
             return;
         }
         String cid = getCid(userId);
-        if (StrUtil.isEmpty(cid)) {
+        if (StrUtil.isEmpty(cid) || uniPushService == null) {
             return;
         }
         User user = getUserInfo(rtcSession.getHost().getId());
@@ -66,7 +68,7 @@ public class RtcPrivateNotifyServiceImpl implements RtcPrivateNotifyService {
             return;
         }
         String cid = getCid(userId);
-        if (StrUtil.isEmpty(cid)) {
+        if (StrUtil.isEmpty(cid) || uniPushService == null) {
             return;
         }
         User user = getUserInfo(rtcSession.getHost().getId());

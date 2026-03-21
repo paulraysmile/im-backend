@@ -1,6 +1,8 @@
 package com.bx.implatform.controller;
 
 import com.bx.implatform.dto.ChatDeleteDTO;
+import com.bx.implatform.dto.GroupMessageRemoveAllDTO;
+import com.bx.implatform.dto.GroupMessageRemoveDTO;
 import com.bx.implatform.dto.GroupMessageDTO;
 import com.bx.implatform.dto.MessageDeleteDTO;
 import com.bx.implatform.result.Result;
@@ -61,6 +63,18 @@ public class GroupMessageController {
     public Result deleteMessage(@Valid @RequestBody MessageDeleteDTO dto) {
         groupMessageService.deleteMessage(dto);
         return ResultUtils.success();
+    }
+
+    @DeleteMapping("/remove")
+    @Operation(summary = "移除群聊消息", description = "将指定消息标记为已删除，仅对当前用户生效")
+    public Result<GroupMessageVO> remove(@Valid @RequestBody GroupMessageRemoveDTO dto) {
+        return ResultUtils.success(groupMessageService.remove(dto));
+    }
+
+    @DeleteMapping("/removeAll")
+    @Operation(summary = "移除全部群聊消息", description = "将当前用户在该群聊中的全部消息标记为已删除")
+    public Result<GroupMessageVO> removeAll(@Valid @RequestBody GroupMessageRemoveAllDTO dto) {
+        return ResultUtils.success(groupMessageService.removeAll(dto));
     }
 
     @DeleteMapping("/deleteChat")

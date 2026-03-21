@@ -2,9 +2,11 @@ package com.bx.implatform.controller;
 
 import com.bx.implatform.annotation.RepeatSubmit;
 import com.bx.implatform.dto.BindEmailDTO;
+import com.bx.implatform.dto.DeviceTokenDTO;
 import com.bx.implatform.dto.BindPhoneDTO;
 import com.bx.implatform.result.Result;
 import com.bx.implatform.result.ResultUtils;
+import com.bx.implatform.service.UserDeviceTokenService;
 import com.bx.implatform.service.UserService;
 import com.bx.implatform.vo.UserVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +25,7 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final UserDeviceTokenService userDeviceTokenService;
 
     @GetMapping("/self")
     @Operation(summary = "获取当前用户信息", description = "获取当前用户信息")
@@ -56,6 +59,22 @@ public class UserController {
     public Result reportCid(@RequestParam String cid){
         userService.reportCid(cid);
         return ResultUtils.success();
+    }
+
+    @RepeatSubmit
+    @PostMapping("/deviceToken")
+    @Operation(summary = "上报用户设备Token", description = "上报用户设备推送Token，落库至 im_user_device_token")
+    public Result reportDeviceToken(@Valid @RequestBody DeviceTokenDTO dto) {
+        userDeviceTokenService.reportDeviceToken(dto);
+        // iOS 上报的是 APNs token，不作为个推 cid；仅 Android/其他 上报 cid 时调用 reportCid
+        if (!isIosPlatform(dto.getPlatform())) {
+            userService.reportCid(dto.getToken());
+        }
+        return ResultUtils.success();
+    }
+
+    private static boolean isIosPlatform(String platform) {
+        return platform != null && "ios".equalsIgnoreCase(platform.trim());
     }
 
 

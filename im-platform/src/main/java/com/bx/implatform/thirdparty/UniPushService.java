@@ -19,6 +19,7 @@ import com.getui.push.v2.sdk.dto.req.message.ios.IosDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +36,7 @@ import java.util.concurrent.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnBean(com.getui.push.v2.sdk.api.PushApi.class)
 public class UniPushService {
 
     @Lazy

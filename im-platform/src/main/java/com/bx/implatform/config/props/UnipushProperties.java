@@ -14,9 +14,12 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "notify.uni-push")
 public class UnipushProperties {
 
+    /** 是否启用个推，仅使用 APNs 时设为 false 避免启动时校验失败 */
+    private Boolean enabled = false;
+
     private String appId;
 
     private String appKey;
 
-    private String   masterSecret;
+    private String masterSecret;
 }

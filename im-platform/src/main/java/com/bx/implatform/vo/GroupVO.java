@@ -61,6 +61,9 @@ public class GroupVO {
     @Schema(description = "是否允许普通成员分享名片")
     private Boolean isAllowShareCard;
 
+    @Schema(description = "是否允许普通成员群内互相加好友")
+    private Boolean isAllowAddOther;
+
     @Schema(description = "是否已解散")
     private Boolean dissolve;
 

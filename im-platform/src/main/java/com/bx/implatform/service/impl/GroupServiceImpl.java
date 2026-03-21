@@ -680,6 +680,55 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, Group> implements
         this.update(wrapper);
     }
 
+    @Override
+    public void setAllowAddOther(GroupAllowAddOtherDTO dto) {
+        UserSession session = SessionContext.getSession();
+        Group group = getAndCheckById(dto.getGroupId());
+        GroupMember member = groupMemberService.findByGroupAndUserId(dto.getGroupId(), session.getUserId());
+        if (!session.getUserId().equals(group.getOwnerId()) && !member.getIsManager()) {
+            throw new GlobalException("您没有操作权限");
+        }
+        LambdaUpdateWrapper<Group> wrapper = Wrappers.lambdaUpdate();
+        wrapper.eq(Group::getId, dto.getGroupId());
+        wrapper.set(Group::getIsAllowAddOther, dto.getIsAllowAddOther());
+        this.update(wrapper);
+    }
+
+    @Override
+    public void checkAllowAddFriendFromGroup(Long senderId, Long recvId) {
+        List<GroupMember> senderMembers = groupMemberService.findByUserId(senderId);
+        List<GroupMember> recvMembers = groupMemberService.findByUserId(recvId);
+        Set<Long> senderGroupIds = senderMembers.stream()
+            .filter(m -> !Boolean.TRUE.equals(m.getQuit()))
+            .map(GroupMember::getGroupId)
+            .collect(Collectors.toSet());
+        Set<Long> recvGroupIds = recvMembers.stream()
+            .filter(m -> !Boolean.TRUE.equals(m.getQuit()))
+            .map(GroupMember::getGroupId)
+            .collect(Collectors.toSet());
+        senderGroupIds.retainAll(recvGroupIds);
+        if (senderGroupIds.isEmpty()) {
+            return;
+        }
+        Map<Long, GroupMember> senderMap = senderMembers.stream()
+            .collect(Collectors.toMap(GroupMember::getGroupId, m -> m, (a, b) -> a));
+        for (Long groupId : senderGroupIds) {
+            Group group = getById(groupId);
+            if (group == null || !Boolean.FALSE.equals(group.getIsAllowAddOther())) {
+                continue;
+            }
+            GroupMember senderMember = senderMap.get(groupId);
+            if (senderMember == null || senderMember.getQuit()) {
+                continue;
+            }
+            boolean isOwner = senderId.equals(group.getOwnerId());
+            boolean isManager = Boolean.TRUE.equals(senderMember.getIsManager());
+            if (!isOwner && !isManager) {
+                throw new GlobalException("该群禁止普通成员群内互相加好友");
+            }
+        }
+    }
+
     private void sendMutedTip(Long groupId, GroupMember member, List<Long> userIds, Boolean isMuted) {
         String name = formatUserMark(member);
         String tip = name + (isMuted ? "开启了全员禁言,只有群主和管理员可以发言" : "解除了全员禁言");

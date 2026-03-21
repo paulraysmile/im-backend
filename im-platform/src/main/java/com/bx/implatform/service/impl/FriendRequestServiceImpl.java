@@ -19,6 +19,7 @@ import com.bx.implatform.exception.GlobalException;
 import com.bx.implatform.mapper.FriendRequestMapper;
 import com.bx.implatform.service.FriendRequestService;
 import com.bx.implatform.service.FriendService;
+import com.bx.implatform.service.GroupService;
 import com.bx.implatform.service.UserBlacklistService;
 import com.bx.implatform.service.UserService;
 import com.bx.implatform.session.SessionContext;
@@ -54,6 +55,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
 
     private final UserService userService;
     private final FriendService friendService;
+    private final GroupService groupService;
     private final UserBlacklistService userBlacklistService;
     private final IMClient imClient;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -91,6 +93,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         if (userBlacklistService.isInBlacklist(dto.getFriendId(), session.getUserId())) {
             throw new GlobalException("对方已将您拉入黑名单");
         }
+        groupService.checkAllowAddFriendFromGroup(session.getUserId(), dto.getFriendId());
         // 先查询，防止多次重复申请
         LambdaQueryWrapper<FriendRequest> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(FriendRequest::getSendId, session.getUserId());

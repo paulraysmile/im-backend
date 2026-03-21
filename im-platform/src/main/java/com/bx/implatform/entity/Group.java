@@ -63,6 +63,11 @@ public class Group {
     private Boolean isAllowShareCard;
 
     /**
+     * 是否允许普通成员群内互相加好友
+     */
+    private Boolean isAllowAddOther;
+
+    /**
      * 置顶消息id
      */
     private Long topMessageId;

@@ -2,6 +2,8 @@ package com.bx.implatform.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.bx.implatform.dto.ChatDeleteDTO;
+import com.bx.implatform.dto.GroupMessageRemoveAllDTO;
+import com.bx.implatform.dto.GroupMessageRemoveDTO;
 import com.bx.implatform.dto.GroupMessageDTO;
 import com.bx.implatform.dto.MessageDeleteDTO;
 import com.bx.implatform.entity.GroupMessage;
@@ -60,5 +62,27 @@ public interface GroupMessageService extends IService<GroupMessage> {
      * @param dto dto
      */
     void deleteChat(ChatDeleteDTO dto);
+
+    /**
+     * 移除群聊消息
+     * <p>
+     * 将指定消息标记为已删除（仅对当前用户生效）
+     * </p>
+     *
+     * @param dto 请求参数
+     * @return 最后一条被移除的消息VO
+     */
+    GroupMessageVO remove(GroupMessageRemoveDTO dto);
+
+    /**
+     * 移除全部群聊消息
+     * <p>
+     * 将当前用户在该群聊中的全部消息标记为已删除
+     * </p>
+     *
+     * @param dto 请求参数
+     * @return 最后一条消息VO
+     */
+    GroupMessageVO removeAll(GroupMessageRemoveAllDTO dto);
 
 }

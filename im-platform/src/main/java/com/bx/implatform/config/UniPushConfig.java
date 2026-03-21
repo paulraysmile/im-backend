@@ -6,7 +6,7 @@ import com.getui.push.v2.sdk.GtApiConfiguration;
 import com.getui.push.v2.sdk.api.PushApi;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @Data
 @Component
 @AllArgsConstructor
-@ConditionalOnProperty(prefix = "notify", value = "enable", havingValue = "true", matchIfMissing = false)
+@ConditionalOnExpression("${notify.enable:false} and ${notify.uni-push.enabled:false}")
 public class UniPushConfig {
 
     private final UnipushProperties unipushProperties;

@@ -200,4 +200,17 @@ public interface GroupService extends IService<Group> {
      * @param dto
      */
     void setAllowShareCard(GroupAllowShareCardDTO dto);
+
+    /**
+     * 允许/禁止普通成员群内互相加好友
+     * @param dto
+     */
+    void setAllowAddOther(GroupAllowAddOtherDTO dto);
+
+    /**
+     * 校验普通成员是否可在群内加对方为好友
+     * @param senderId 申请方
+     * @param recvId 被申请方
+     */
+    void checkAllowAddFriendFromGroup(Long senderId, Long recvId);
 }

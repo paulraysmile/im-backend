@@ -96,6 +96,12 @@
             <artifactId>restful-sdk</artifactId>
             <version>1.0.3.0</version>
         </dependency>
+        <!-- APNs 直连推送（苹果设备） -->
+        <dependency>
+            <groupId>com.eatthepath</groupId>
+            <artifactId>pushy</artifactId>
+            <version>0.15.2</version>
+        </dependency>
         <!--计算机视觉领域的封装库 -->
         <dependency>
             <groupId>org.bytedeco</groupId>

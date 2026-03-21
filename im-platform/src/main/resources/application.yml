@@ -33,17 +33,25 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 notify:
-  enable: false # 是否开启推送功能
+  enable: false # 是否开启推送功能（APNs/个推依赖此开关）
   debug: false # 调试模式,生产环境必须关闭，华为手机在调试模式下，一天可发送500条消息
-  app-name: 盒子IM # app名称，也是默认title
-  package-name: com.boxim # 应用包名，跟unipush后台配置的一致
+  app-name: Novem # app名称，也是默认title
+  package-name: com.novemchat.com.im # 应用包名，跟unipush后台配置的一致
   active-days: 30   # 用户最近活跃天数，30天内未登录的用户不推送
   max-size: 99   # 最大消息数量,未读数量超过此值不再推送，-1表示不限制
   uni-push:
+    enabled: false # 仅用 APNs 时设为 false，避免个推 appkey 校验导致启动失败
     # unipush的应用配置，需自行注册申请
     app-id: nyK71XQYUy9s7Vlzoutlp1
     app-key: XtG6NkUSL9xxxxLSE0jYA
     master-secret: MxApXxxxx57jcPCeC0cXk6
+  apns:
+    enabled: false
+    key-id: ""
+    team-id: ""
+    bundle-id: ""
+    key-path: ""
+    production: true
   manufacturer:
     # 消息分类开通参考: https://docs.getui.com/getui/mobile/vendor/qps/
     xm-channel-id: 130751 # 小米消息类别channelId

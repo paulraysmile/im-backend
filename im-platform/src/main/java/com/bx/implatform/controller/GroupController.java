@@ -196,5 +196,12 @@ public class GroupController {
         return ResultUtils.success();
     }
 
+    @Operation(summary = "设置是否允许普通成员群内互相加好友", description = "设置是否允许普通成员群内互相加好友")
+    @PutMapping("/allowAddOther")
+    public Result setAllowAddOther(@Valid @RequestBody GroupAllowAddOtherDTO dto) {
+        groupService.setAllowAddOther(dto);
+        return ResultUtils.success();
+    }
+
 }
 

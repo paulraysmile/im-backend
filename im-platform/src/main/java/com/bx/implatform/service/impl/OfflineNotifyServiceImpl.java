@@ -10,7 +10,9 @@ import com.bx.implatform.enums.MessageType;
 import com.bx.implatform.service.FriendService;
 import com.bx.implatform.service.GroupService;
 import com.bx.implatform.service.OfflineNotifyService;
+import com.bx.implatform.service.UserDeviceTokenService;
 import com.bx.implatform.session.OfflineNotifySession;
+import com.bx.implatform.thirdparty.ApnsPushService;
 import com.bx.implatform.thirdparty.UniPushService;
 import com.bx.implatform.vo.FriendRequestVO;
 import com.bx.implatform.vo.GroupMessageVO;
@@ -18,6 +20,7 @@ import com.bx.implatform.vo.PrivateMessageVO;
 import com.bx.implatform.vo.SystemMessageVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -34,7 +37,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OfflineNotifyServiceImpl implements OfflineNotifyService {
 
-    private final UniPushService uniPushService;
+    @Autowired(required = false)
+    private UniPushService uniPushService;
+    private final ApnsPushService apnsPushService;
+    private final UserDeviceTokenService userDeviceTokenService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final NotifyProperties notifyProps;
     private final FriendService friendService;
@@ -43,18 +49,17 @@ public class OfflineNotifyServiceImpl implements OfflineNotifyService {
     @NotifyCheck
     @Override
     public void sendPrivateOfflineNotify(List<IMSendResult<PrivateMessageVO>> results) {
-        // 接收用户列表
         Set<Long> recvIds = results.stream().map(r -> r.getReceiver().getId()).collect(Collectors.toSet());
-        // Map<接受用户id,cid>
         Map<Long, String> cidMap = getCId(recvIds);
-        // Map<接受用户id,session>
-        Map<Long, OfflineNotifySession> sessionMap = findNotifySession(cidMap.keySet());
+        Set<Long> noCidIds = recvIds.stream().filter(id -> StrUtil.isEmpty(cidMap.get(id))).collect(Collectors.toSet());
+        Map<Long, String> apnsMap = userDeviceTokenService.getApnsTokensByUserIds(noCidIds);
+        Map<Long, OfflineNotifySession> sessionMap = findNotifySession(recvIds);
         results.forEach(ret -> {
             Long sendId = ret.getSender().getId();
             Long recvId = ret.getReceiver().getId();
             String cid = cidMap.get(recvId);
-            // 没有cid，则不推送
-            if (StrUtil.isEmpty(cid)) {
+            String apnsToken = apnsMap.get(recvId);
+            if (StrUtil.isEmpty(cid) && StrUtil.isEmpty(apnsToken)) {
                 return;
             }
             // 通知会话信息
@@ -76,28 +81,25 @@ public class OfflineNotifyServiceImpl implements OfflineNotifyService {
             }
             session.getFriendIds().add(sendId);
             session.setMessageSize(session.getMessageSize() + 1);
-            // 推送离线通知
-            sendNotifyMessage(recvId, cid, session);
+            sendNotifyMessage(recvId, cid, apnsToken, session);
         });
-        // 保存session
         saveNotifySession(sessionMap);
     }
 
     @NotifyCheck
     @Override
     public void sendGroupOfflineNotify(List<IMSendResult<GroupMessageVO>> results) {
-        // 接收用户列表
         Set<Long> recvIds = results.stream().map(r -> r.getReceiver().getId()).collect(Collectors.toSet());
-        // Map<接受用户id,cid>
         Map<Long, String> cidMap = getCId(recvIds);
-        // 获取离线通知session
-        Map<Long, OfflineNotifySession> sessionMap = findNotifySession(cidMap.keySet());
+        Set<Long> noCidIds = recvIds.stream().filter(id -> StrUtil.isEmpty(cidMap.get(id))).collect(Collectors.toSet());
+        Map<Long, String> apnsMap = userDeviceTokenService.getApnsTokensByUserIds(noCidIds);
+        Map<Long, OfflineNotifySession> sessionMap = findNotifySession(recvIds);
         results.forEach(ret -> {
             Long groupId = ret.getData().getGroupId();
             Long recvId = ret.getReceiver().getId();
             String cid = cidMap.get(recvId);
-            // 如果没有cid,则不推送
-            if (StrUtil.isEmpty(cid)) {
+            String apnsToken = apnsMap.get(recvId);
+            if (StrUtil.isEmpty(cid) && StrUtil.isEmpty(apnsToken)) {
                 return;
             }
             OfflineNotifySession session = sessionMap.get(recvId);
@@ -118,30 +120,33 @@ public class OfflineNotifyServiceImpl implements OfflineNotifyService {
             }
             session.getGroupIds().add(groupId);
             session.setMessageSize(session.getMessageSize() + 1);
-            // 推送离线通知
-            sendNotifyMessage(recvId, cid, session);
+            sendNotifyMessage(recvId, cid, apnsToken, session);
         });
-        // 保存session
         saveNotifySession(sessionMap);
     }
 
     @NotifyCheck
     @Override
     public void sendSystemOfflineNotify(List<IMSendResult<SystemMessageVO>> results) {
-        // 接收用户列表
         Set<Long> recvIds = results.stream().map(r -> r.getReceiver().getId()).collect(Collectors.toSet());
-        // Map<接受用户id,cid>
         Map<Long, String> cidMap = getCId(recvIds);
+        Set<Long> noCidIds = recvIds.stream().filter(id -> StrUtil.isEmpty(cidMap.get(id))).collect(Collectors.toSet());
+        Map<Long, String> apnsMap = userDeviceTokenService.getApnsTokensByUserIds(noCidIds);
         results.forEach(ret -> {
             SystemMessageVO messageVo = ret.getData();
             Long recvId = ret.getReceiver().getId();
             String cid = cidMap.get(recvId);
-            if (StrUtil.isEmpty(cid)) {
+            String apnsToken = apnsMap.get(recvId);
+            if (StrUtil.isEmpty(cid) && StrUtil.isEmpty(apnsToken)) {
                 return;
             }
-            // 推送
             String notifyId = Math.abs(messageVo.hashCode()) + "";
-            uniPushService.asyncSend(cid, "系统通知", messageVo.getTitle(), "", notifyId, messageVo);
+            String title = "系统通知";
+            if (StrUtil.isNotEmpty(cid) && uniPushService != null) {
+                uniPushService.asyncSend(cid, title, messageVo.getTitle(), "", notifyId, messageVo);
+            } else if (apnsPushService.isAvailable()) {
+                apnsPushService.asyncSend(apnsToken, title, messageVo.getTitle(), notifyId, messageVo);
+            }
         });
     }
 
@@ -149,25 +154,40 @@ public class OfflineNotifyServiceImpl implements OfflineNotifyService {
     @Override
     public void sendFriendRequestNotify(PrivateMessageVO messageInfo) {
         if (messageInfo.getType().equals(MessageType.FRIEND_REQ_APPLY.code())) {
-            String key = buildCidKey(messageInfo.getRecvId());
-            String cid = (String)redisTemplate.opsForValue().get(key);
+            Long recvId = messageInfo.getRecvId();
+            String cid = (String) redisTemplate.opsForValue().get(buildCidKey(recvId));
+            String apnsToken = null;
             if (StrUtil.isEmpty(cid)) {
+                Map<Long, String> apnsMap = userDeviceTokenService.getApnsTokensByUserIds(Set.of(recvId));
+                apnsToken = apnsMap.get(recvId);
+            }
+            if (StrUtil.isEmpty(cid) && StrUtil.isEmpty(apnsToken)) {
                 return;
             }
             String notifyId = Math.abs(messageInfo.hashCode()) + "";
             FriendRequestVO vo = JSON.parseObject(messageInfo.getContent(), FriendRequestVO.class);
             String body = "请求添加您为好友";
-            uniPushService.asyncSend(cid, vo.getSendNickName(), body, vo.getSendHeadImage(), notifyId, messageInfo);
+            if (StrUtil.isNotEmpty(cid) && uniPushService != null) {
+                uniPushService.asyncSend(cid, vo.getSendNickName(), body, vo.getSendHeadImage(), notifyId, messageInfo);
+            } else if (apnsPushService.isAvailable()) {
+                apnsPushService.asyncSend(apnsToken, vo.getSendNickName(), body, notifyId, messageInfo);
+            }
         }
     }
 
-    private void sendNotifyMessage(Long recvId, String cid, OfflineNotifySession session) {
+    /**
+     * 推送离线通知：优先 cid（个推），否则 APNs（苹果直连）
+     */
+    private void sendNotifyMessage(Long recvId, String cid, String apnsToken, OfflineNotifySession session) {
         int linkmanSize = session.getFriendIds().size() + session.getGroupIds().size();
         int messageSize = session.getMessageSize();
         String body = String.format("%s位联系人发来%s条消息", linkmanSize, messageSize);
         String notifyId = Math.abs(buildSessionKey(recvId).hashCode()) + "";
-        // 推送
-        uniPushService.asyncSend(cid, notifyProps.getAppName(), body, "", notifyId, null);
+        if (StrUtil.isNotEmpty(cid) && uniPushService != null) {
+            uniPushService.asyncSend(cid, notifyProps.getAppName(), body, "", notifyId, null);
+        } else if (apnsPushService.isAvailable() && StrUtil.isNotEmpty(apnsToken)) {
+            apnsPushService.asyncSend(apnsToken, notifyProps.getAppName(), body, notifyId, null);
+        }
     }
 
     /**

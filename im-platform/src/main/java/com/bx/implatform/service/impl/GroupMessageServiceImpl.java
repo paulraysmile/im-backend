@@ -18,6 +18,8 @@ import com.bx.imcommon.util.ThreadPoolExecutorFactory;
 import com.bx.implatform.contant.Constant;
 import com.bx.implatform.contant.RedisKey;
 import com.bx.implatform.dto.ChatDeleteDTO;
+import com.bx.implatform.dto.GroupMessageRemoveAllDTO;
+import com.bx.implatform.dto.GroupMessageRemoveDTO;
 import com.bx.implatform.dto.GroupMessageDTO;
 import com.bx.implatform.dto.MessageDeleteDTO;
 import com.bx.implatform.entity.Group;
@@ -373,6 +375,35 @@ public class GroupMessageServiceImpl extends ServiceImpl<GroupMessageMapper, Gro
     }
 
     @Override
+    public GroupMessageVO remove(GroupMessageRemoveDTO dto) {
+        UserSession session = SessionContext.getSession();
+        groupService.getAndCheckById(dto.getGroupId());
+        GroupMember member = groupMemberService.findByGroupAndUserId(dto.getGroupId(), session.getUserId());
+        if (Objects.isNull(member) || Boolean.TRUE.equals(member.getQuit())) {
+            throw new GlobalException("您已不在群聊里面");
+        }
+        messageDeletionService.deleteByMessage(ChatType.GROUP, dto.getGroupId(), dto.getMessageIds());
+        Long maxId = dto.getMessageIds().stream().max(Long::compareTo).orElse(0L);
+        GroupMessage msg = maxId > 0 ? this.getById(maxId) : null;
+        if (Objects.isNull(msg) || !msg.getGroupId().equals(dto.getGroupId())) {
+            GroupMessageVO empty = new GroupMessageVO();
+            empty.setGroupId(dto.getGroupId());
+            return empty;
+        }
+        log.info("用户{}移除群聊{}消息, 数量:{}", session.getUserId(), dto.getGroupId(), dto.getMessageIds().size());
+        return toGroupMessageVO(msg);
+    }
+
+    private GroupMessageVO toGroupMessageVO(GroupMessage m) {
+        GroupMessageVO vo = BeanUtils.copyProperties(m, GroupMessageVO.class);
+        List<String> atIds = CommaTextUtils.asList(m.getAtUserIds());
+        vo.setAtUserIds(atIds.isEmpty() ? Collections.emptyList() : atIds.stream().map(Long::parseLong).collect(Collectors.toList()));
+        GroupMessage quoteMsg = m.getQuoteMessageId() != null ? this.getById(m.getQuoteMessageId()) : null;
+        vo.setQuoteMessage(quoteMsg != null ? BeanUtils.copyProperties(quoteMsg, QuoteMessageVO.class) : null);
+        return vo;
+    }
+
+    @Override
     public void deleteChat(ChatDeleteDTO dto) {
         // 获取会话中最后一条消息
         LambdaQueryWrapper<GroupMessage> wrapper = Wrappers.lambdaQuery();
@@ -385,6 +416,27 @@ public class GroupMessageServiceImpl extends ServiceImpl<GroupMessageMapper, Gro
         }
         // 保存删除记录
         messageDeletionService.deleteByChat(ChatType.GROUP, dto.getChatId(), message.getId());
+    }
+
+    @Override
+    public GroupMessageVO removeAll(GroupMessageRemoveAllDTO dto) {
+        UserSession session = SessionContext.getSession();
+        groupService.getAndCheckById(dto.getGroupId());
+        GroupMember member = groupMemberService.findByGroupAndUserId(dto.getGroupId(), session.getUserId());
+        if (Objects.isNull(member) || Boolean.TRUE.equals(member.getQuit())) {
+            throw new GlobalException("您已不在群聊里面");
+        }
+        LambdaQueryWrapper<GroupMessage> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(GroupMessage::getGroupId, dto.getGroupId()).orderByDesc(GroupMessage::getId).last("limit 1");
+        GroupMessage lastMessage = this.getOne(wrapper);
+        if (Objects.isNull(lastMessage)) {
+            GroupMessageVO empty = new GroupMessageVO();
+            empty.setGroupId(dto.getGroupId());
+            return empty;
+        }
+        messageDeletionService.deleteByChat(ChatType.GROUP, dto.getGroupId(), lastMessage.getId());
+        log.info("用户{}移除群聊{}全部消息", session.getUserId(), dto.getGroupId());
+        return toGroupMessageVO(lastMessage);
     }
 
     private List<Long> getReadedUserIds(Map<Object, Object> maxIdMap, Long messageId, Long sendId) {
