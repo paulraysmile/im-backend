@@ -81,6 +81,12 @@
             <artifactId>mybatis-plus-generator</artifactId>
             <version>${mybatisplus.version}</version>
         </dependency>
+        <!-- ShardingSphere JDBC 核心依赖 -->
+        <dependency>
+            <groupId>org.apache.shardingsphere</groupId>
+            <artifactId>shardingsphere-jdbc</artifactId>
+            <version>5.5.2</version>
+        </dependency>
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>

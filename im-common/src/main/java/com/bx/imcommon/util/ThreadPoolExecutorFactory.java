@@ -57,9 +57,9 @@ public final class ThreadPoolExecutorFactory {
             synchronized (ThreadPoolExecutorFactory.class) {
                 if (null == threadPoolExecutor) {
                     threadPoolExecutor = new ScheduledThreadPoolExecutor(
-                            //核心线程数
+                            // 核心线程数
                             CORE_POOL_SIZE,
-                            //拒绝策略
+                            // 拒绝策略
                             new ThreadPoolExecutor.CallerRunsPolicy()
                     );
                 }
