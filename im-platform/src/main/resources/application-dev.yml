@@ -1,11 +1,9 @@
 spring:
   datasource:
-#    driver-class-name: com.mysql.cj.jdbc.Driver
-#    url: jdbc:mysql://localhost:3306/im_platform?useSSL=false&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true
-#    username: root
-#    password: root
-    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
-    url: jdbc:shardingsphere:classpath:sharding-datasource.yml
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/im_platform?useSSL=false&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true
+    username: root
+    password: root
   data:
     redis:
       host: localhost
