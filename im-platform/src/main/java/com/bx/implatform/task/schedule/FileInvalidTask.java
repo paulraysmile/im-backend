@@ -12,6 +12,7 @@ import com.bx.implatform.thirdparty.MinioService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.time.DateUtils;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -47,7 +48,7 @@ public class FileInvalidTask {
     private final StickerCustomService stickerCustomService;
 
     @RedisLock(prefixKey = RedisKey.IM_LOCK_FILE_INVALID_TASK)
-    // @Scheduled(cron = "0 0 3 * * ?")
+    @Scheduled(cron = "0 0 3 * * ?")
     public void run() {
         log.info("【定时任务】无效文件处理...");
         int delSize = 0;

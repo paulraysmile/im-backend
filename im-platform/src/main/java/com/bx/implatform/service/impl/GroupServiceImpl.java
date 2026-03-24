@@ -297,7 +297,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, Group> implements
             groupMember.setUserNickName(f.getFriendNickName());
             groupMember.setHeadImage(f.getFriendHeadImage());
             groupMember.setCompanyName(f.getFriendCompanyName());
-            groupMember.setCreatedTime(new Date());
+            groupMember.setCreateTime(new Date());
             groupMember.setIsManager(false);
             groupMember.setQuit(false);
             return groupMember;
@@ -429,7 +429,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, Group> implements
         member.setUserNickName(user.getNickName());
         member.setHeadImage(user.getHeadImageThumb());
         member.setCompanyName(user.getCompanyName());
-        member.setCreatedTime(new Date());
+        member.setCreateTime(new Date());
         member.setIsManager(false);
         member.setQuit(false);
         groupMemberService.saveOrUpdate(member);

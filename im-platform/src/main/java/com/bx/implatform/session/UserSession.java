@@ -17,4 +17,10 @@ public class UserSession extends IMSessionInfo {
      * 用户昵称
      */
     private String nickName;
+
+    /**
+     * 公司id
+     */
+    private Long companyId;
+
 }

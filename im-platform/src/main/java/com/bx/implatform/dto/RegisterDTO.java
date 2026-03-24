@@ -12,6 +12,11 @@ import org.hibernate.validator.constraints.Length;
 @Schema(description = "用户注册DTO")
 public class RegisterDTO {
 
+    @Pattern(regexp = PatternText.INVITE_CODE, message = "邀请码为6位数字或字母")
+    @NotEmpty(message = "邀请码不可为空")
+    @Schema(description = "邀请码，6位数字或字母，用于绑定企业")
+    private String inviteCode;
+
     @Schema(description = "注册方式, username:用户名注册, phone:手机注册,email: 邮箱注册")
     private String mode = RegisterMode.USER_NAME.getCode() ;
 
@@ -26,7 +31,6 @@ public class RegisterDTO {
 
     @Schema(description = "邮箱")
     private String email;
-
 
     @Length(min = 5, max = 20, message = "密码长度必须在5-20个字符之间")
     @NotEmpty(message = "用户密码不可为空")

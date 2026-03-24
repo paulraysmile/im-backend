@@ -212,15 +212,14 @@ create table `im_user_complaint` (
 
 create table im_company (
   `id` bigint not null auto_increment primary key comment 'id',
-  `name` varchar(128) not null comment '企业名称',
-  `code` varchar(64) not null comment '统一社会信用代码',
-  `license` varchar(256) comment '营业执照',
-  `biz_scope` varchar(256) comment '业务范围',
-  `contact_person` varchar(32) comment '联系人姓名',
+  `company_name` varchar(128) not null comment '企业名称',
+  `invite_code` varchar(64) not null comment '邀请码',
+  `contact_name` varchar(32) comment '联系人姓名',
   `contact_phone` varchar(20) comment '联系电话',
   `deleted` tinyint(1) default 0 comment '删除标识  0：正常   1：已删除',
   `creator` bigint comment '创建者',
-  `create_time` datetime comment '创建时间'
+  `create_time` datetime comment '创建时间',
+  unique key `uk_invite_code` (`invite_code`)
 ) engine = innodb charset = utf8mb4 comment '企业信息';
 
 create table `im_sticker_album` (
@@ -300,7 +299,7 @@ create table `im_talk` (
   key `idx_create_time` (`create_time`)
 ) engine = innodb charset = utf8mb4 comment = '朋友圈动态';
 
-create table `im_talk_star` (
+create table `im_talk_like` (
   `id` bigint not null auto_increment primary key comment 'id',
   `talk_id` bigint not null comment '动态id',
   `user_id` bigint not null comment '用户id',

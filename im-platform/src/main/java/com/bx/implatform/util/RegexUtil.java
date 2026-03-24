@@ -7,27 +7,20 @@ import java.util.regex.Pattern;
 
 /**
  * 正则校验
- * @author Blue
- * @version 1.0
- * @date 2025-03-21
  */
 public class RegexUtil {
 
+    private static final Pattern PHONE_PATTERN = Pattern.compile(PatternText.PHONE);
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(PatternText.EMAIL);
+
     public static Boolean isPhone(String text){
-        // 编译正则表达式
-        Pattern pattern = Pattern.compile(PatternText.PHONE);
-        // 创建matcher对象
-        Matcher matcher = pattern.matcher(text);
-        // 进行匹配检查
+        Matcher matcher = PHONE_PATTERN.matcher(text);
         return matcher.matches();
     }
 
     public static Boolean isEmail(String text){
-        // 编译正则表达式
-        Pattern pattern = Pattern.compile(PatternText.EMAIL);
-        // 创建matcher对象
-        Matcher matcher = pattern.matcher(text);
-        // 进行匹配检查
+        Matcher matcher = EMAIL_PATTERN.matcher(text);
         return matcher.matches();
     }
 }

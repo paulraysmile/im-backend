@@ -63,12 +63,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final CaptchaService captchaService;
     private final SensitiveFilterUtil sensitiveFilterUtil;
     private final HttpServletRequest request;
+    private final CompanyService companyService;
 
     @Override
     public LoginVO login(LoginDTO dto) {
-        User user = this.findUserByLoginName(dto.getUserName());
+        Long companyId = companyService.selectIdByInviteCode(dto.getInviteCode());
+        if (companyId == null) {
+            throw new GlobalException("邀请码无效");
+        }
+        User user = this.findUserByLoginName(dto.getUserName(), companyId);
         if (Objects.isNull(user)) {
-            log.warn("用户不存在,name:{}", dto.getUserName());
+            log.warn("用户不存在,name:{},companyId:{}", dto.getUserName(), companyId);
             throw new GlobalException("用户不存在");
         }
         if (user.getStatus().equals(UserStatus.UN_REG.getValue())) {
@@ -81,22 +86,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new GlobalException(ResultCode.PASSWOR_ERROR);
         }
         // 更新用户登录ip、时间
-        String ip = JakartaServletUtil.getClientIP(request);
-        user.setLastLoginIp(ip);
-        user.setLastLoginTime(new Date());
-        this.updateById(user);
+        this.lambdaUpdate()
+                .eq(User::getId, user.getId())
+                .set(User::getLastLoginIp, JakartaServletUtil.getClientIP(request))
+                .set(User::getLastLoginTime, new Date())
+                .update();
         // 初始化免打扰缓存
         friendService.initDndCache(user.getId());
         groupService.initDndCache(user.getId());
         // 生成token
-        UserSession session = BeanUtils.copyProperties(user, UserSession.class);
+        UserSession session = new UserSession();
         session.setUserId(user.getId());
         session.setTerminal(dto.getTerminal());
+        session.setUserName(user.getUserName());
+        session.setNickName(user.getNickName());
+        session.setCompanyId(companyId);
         String strJson = JSON.toJSONString(session);
-        String accessToken =
-            JwtUtil.sign(user.getId(), strJson, jwtProps.getAccessTokenExpireIn(), jwtProps.getAccessTokenSecret());
-        String refreshToken =
-            JwtUtil.sign(user.getId(), strJson, jwtProps.getRefreshTokenExpireIn(), jwtProps.getRefreshTokenSecret());
+        String accessToken = JwtUtil.sign(user.getId(), strJson, jwtProps.getAccessTokenExpireIn(), jwtProps.getAccessTokenSecret());
+        String refreshToken = JwtUtil.sign(user.getId(), strJson, jwtProps.getRefreshTokenExpireIn(), jwtProps.getRefreshTokenSecret());
         LoginVO vo = new LoginVO();
         vo.setAccessToken(accessToken);
         vo.setAccessTokenExpiresIn(jwtProps.getAccessTokenExpireIn());
@@ -121,14 +128,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 检查是否已经被封禁
         checkIsBan(user);
         // 更新用户登录ip、时间
-        String ip = JakartaServletUtil.getClientIP(request);
-        user.setLastLoginIp(ip);
-        user.setLastLoginTime(new Date());
-        this.updateById(user);
-        String accessToken =
-            JwtUtil.sign(userId, strJson, jwtProps.getAccessTokenExpireIn(), jwtProps.getAccessTokenSecret());
-        String newRefreshToken =
-            JwtUtil.sign(userId, strJson, jwtProps.getRefreshTokenExpireIn(), jwtProps.getRefreshTokenSecret());
+        this.lambdaUpdate()
+                .eq(User::getId, user.getId())
+                .set(User::getLastLoginIp, JakartaServletUtil.getClientIP(request))
+                .set(User::getLastLoginTime, new Date())
+                .update();
+
+        String accessToken = JwtUtil.sign(userId, strJson, jwtProps.getAccessTokenExpireIn(), jwtProps.getAccessTokenSecret());
+        String newRefreshToken = JwtUtil.sign(userId, strJson, jwtProps.getRefreshTokenExpireIn(), jwtProps.getRefreshTokenSecret());
         LoginVO vo = new LoginVO();
         vo.setAccessToken(accessToken);
         vo.setAccessTokenExpiresIn(jwtProps.getAccessTokenExpireIn());
@@ -139,14 +146,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public void register(RegisterDTO dto) {
-        // 昵称默认和用户名保持一致
-        if (StrUtil.isEmpty(dto.getNickName())) {
-            dto.setNickName(dto.getUserName());
-        }
-        User user = this.findUserByUserName(dto.getUserName());
-        if (!Objects.isNull(user)) {
-            throw new GlobalException(ResultCode.USERNAME_ALREADY_REGISTER);
-        }
         // 校验用户名
         if (RegexUtil.isPhone(dto.getUserName()) || RegexUtil.isEmail(dto.getUserName())) {
             throw new GlobalException("用户名不合法");
@@ -154,16 +153,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!dto.getUserName().equals(sensitiveFilterUtil.filter(dto.getUserName()))) {
             throw new GlobalException("用户名包含敏感字符");
         }
-        if (!dto.getNickName().equals(sensitiveFilterUtil.filter(dto.getNickName()))) {
+        if (StrUtil.isNotBlank(dto.getNickName()) && !dto.getNickName().equals(sensitiveFilterUtil.filter(dto.getNickName()))) {
             throw new GlobalException("昵称包含敏感字符");
         }
-        user = new User();
+        Long companyId = companyService.selectIdByInviteCode(dto.getInviteCode());
+        if (companyId == null) {
+            throw new GlobalException("邀请码无效");
+        }
+        if (isExistUsername(dto.getUserName(), companyId)) {
+            throw new GlobalException(ResultCode.USERNAME_ALREADY_REGISTER);
+        }
+        User user = new User();
         // 手机、验证码校验
         if (RegisterMode.PHONE.getCode().equals(dto.getMode())) {
             if (!RegexUtil.isPhone(dto.getPhone())) {
                 throw new GlobalException("手机号格式不合法");
             }
-            if (isExistPhone(dto.getPhone())) {
+            if (isExistPhone(dto.getPhone(), companyId)) {
                 throw new GlobalException("该手机号已被注册");
             }
             if (!captchaService.vertify(CaptchaType.SMS, dto.getPhone(), dto.getCode())) {
@@ -176,7 +182,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             if (!RegexUtil.isEmail(dto.getEmail())) {
                 throw new GlobalException("邮箱格式不合法");
             }
-            if (isExistEmail(dto.getEmail())) {
+            if (isExistEmail(dto.getEmail(), companyId)) {
                 throw new GlobalException("该邮箱已被注册");
             }
             if (!captchaService.vertify(CaptchaType.MAIL, dto.getEmail(), dto.getCode())) {
@@ -196,8 +202,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUserName(dto.getUserName());
         user.setNickName(dto.getNickName());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        // 昵称默认和用户名保持一致
+        if (StrUtil.isEmpty(dto.getNickName())) {
+            dto.setNickName(dto.getUserName());
+        }
         this.save(user);
-        log.info("注册用户，用户id:{},用户名:{},昵称:{},IP:{}", user.getId(), dto.getUserName(), dto.getNickName(), ip);
+        log.info("注册用户，公司id:{},用户id:{},用户名:{},昵称:{},IP:{}", companyId, user.getId(), dto.getUserName(), dto.getNickName(), ip);
     }
 
     @Transactional
@@ -248,23 +258,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public void resetPassword(ResetPwdDTO dto) {
+        Long companyId = companyService.selectIdByInviteCode(dto.getInviteCode());
+        if (companyId == null) {
+            throw new GlobalException("邀请码无效");
+        }
         if (RegisterMode.PHONE.getCode().equals(dto.getMode())) {
             // 手机验证码校验
-            resetPwdByPhone(dto.getPhone(), dto.getCode(), dto.getPassword());
+            resetPwdByPhone(dto.getPhone(), dto.getCode(), dto.getPassword(), companyId);
         } else if (RegisterMode.EMAIL.getCode().equals(dto.getMode())) {
             // 邮箱验证码校验
-            resetPwdByEmail(dto.getEmail(), dto.getCode(), dto.getPassword());
+            resetPwdByEmail(dto.getEmail(), dto.getCode(), dto.getPassword(), companyId);
         } else {
             throw new GlobalException("不支持该密码重置方式");
         }
     }
 
-    private void resetPwdByPhone(String phone, String code, String password) {
+    private void resetPwdByPhone(String phone, String code, String password, Long companyId) {
         // 手机验证码校验
         if (!captchaService.vertify(CaptchaType.SMS, phone, code)) {
             throw new GlobalException("验证码错误");
         }
-        User user = findUserByPhone(phone);
+        User user = findUserByPhone(phone, companyId);
         if (Objects.isNull(user)) {
             throw new GlobalException("该手机号未注册");
         }
@@ -273,12 +287,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.info("通过手机重置用户密码，用户id:{},用户名:{}", user.getId(), user.getUserName());
     }
 
-    private void resetPwdByEmail(String email, String code, String password) {
+    private void resetPwdByEmail(String email, String code, String password, Long companyId) {
         // 手机验证码校验
         if (!captchaService.vertify(CaptchaType.MAIL, email, code)) {
             throw new GlobalException("验证码错误");
         }
-        User user = findUserByEmail(email);
+        User user = findUserByEmail(email, companyId);
         if (Objects.isNull(user)) {
             throw new GlobalException("该邮箱未注册");
         }
@@ -288,52 +302,65 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public User findUserByUserName(String username) {
+    public User findUserByUserName(String username, Long companyId) {
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getUserName, username);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.getOne(queryWrapper);
     }
 
     @Override
-    public User findUserByPhone(String phone) {
+    public User findUserByPhone(String phone, Long companyId) {
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getPhone, phone);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.getOne(queryWrapper);
     }
 
     @Override
-    public User findUserByEmail(String email) {
+    public User findUserByEmail(String email, Long companyId) {
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getEmail, email);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.getOne(queryWrapper);
     }
 
     @Override
-    public User findUserByLoginName(String loginName) {
+    public User findUserByLoginName(String loginName, Long companyId) {
         // 优先用户名登陆
-        User user = findUserByUserName(loginName);
+        User user = findUserByUserName(loginName, companyId);
         // 手机号登陆
         if (Objects.isNull(user) && RegexUtil.isPhone(loginName)) {
-            user = findUserByPhone(loginName);
+            user = findUserByPhone(loginName, companyId);
         }
         // 邮箱登陆
         if (Objects.isNull(user) && RegexUtil.isEmail(loginName)) {
-            user = findUserByEmail(loginName);
+            user = findUserByEmail(loginName, companyId);
         }
         return user;
     }
 
     @Override
-    public Boolean isExistPhone(String phone) {
+    public boolean isExistUsername(String username, Long companyId) {
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
-        queryWrapper.eq(User::getPhone, phone);
+        queryWrapper.eq(User::getUserName, username);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.exists(queryWrapper);
     }
 
     @Override
-    public Boolean isExistEmail(String email) {
+    public boolean isExistPhone(String phone, Long companyId) {
+        LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
+        queryWrapper.eq(User::getPhone, phone);
+        queryWrapper.eq(User::getCompanyId, companyId);
+        return this.exists(queryWrapper);
+    }
+
+    @Override
+    public boolean isExistEmail(String email, Long companyId) {
         LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery();
         queryWrapper.eq(User::getEmail, email);
+        queryWrapper.eq(User::getCompanyId, companyId);
         return this.exists(queryWrapper);
     }
 
@@ -403,33 +430,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public List<UserVO> findUserByName(String name) {
+    public List<UserVO> findUserByUsername(String username) {
         LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(User::getIsBanned, false);
         wrapper.eq(User::getStatus, UserStatus.NORMAL.getValue());
-        wrapper.and(wp -> wp.like(User::getUserName, name).or().like(User::getNickName, name));
-        wrapper.last("limit 20");
+        wrapper.eq(User::getUserName, username);
         List<User> users = this.list(wrapper);
         return convert(users);
     }
 
     @Override
     public List<UserVO> search(String name) {
+        Long companyId = SessionContext.getSession().getCompanyId();
         if (RegexUtil.isPhone(name)) {
             // 查询手机号
-            User user = findUserByPhone(name);
+            User user = findUserByPhone(name, companyId);
             if (!Objects.isNull(user)) {
                 return convert(List.of(user));
             }
         } else if (RegexUtil.isEmail(name)) {
             // 查询邮箱
-            User user = findUserByEmail(name);
+            User user = findUserByEmail(name, companyId);
             if (!Objects.isNull(user)) {
                 return convert(List.of(user));
             }
         } else {
-            // 查询用户名和昵称
-            return findUserByName(name);
+            // 查询用户名
+            return findUserByUsername(name);
         }
         return Lists.newArrayList();
     }
@@ -504,43 +531,55 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Transactional
     @Override
     public void bindPhone(BindPhoneDTO dto) {
+        String phone = dto.getPhone();
+        if (!RegexUtil.isPhone(phone)) {
+            throw new GlobalException("手机号格式不合法");
+        }
         UserSession session = SessionContext.getSession();
-        User user = getById(session.getUserId());
+        User user = this.lambdaQuery()
+                .select(User::getId, User::getPhone)
+                .eq(User::getId, session.getUserId())
+                .one();
         if (StrUtil.isNotEmpty(user.getPhone())) {
             throw new GlobalException("您已绑定了手机号,不可重复绑定");
         }
-        if (!RegexUtil.isPhone(dto.getPhone())) {
-            throw new GlobalException("手机号格式不合法");
-        }
-        if (isExistPhone(dto.getPhone())) {
+        if (isExistPhone(phone, session.getCompanyId())) {
             throw new GlobalException("该手机号已被注册");
         }
-        if (!captchaService.vertify(CaptchaType.SMS, dto.getPhone(), dto.getCode())) {
+        if (!captchaService.vertify(CaptchaType.SMS, phone, dto.getCode())) {
             throw new GlobalException("验证码错误");
         }
-        user.setPhone(dto.getPhone());
-        this.updateById(user);
+        this.lambdaUpdate()
+                .eq(User::getId, session.getUserId())
+                .set(User::getPhone, phone)
+                .update();
     }
 
     @Transactional
     @Override
     public void bindEmail(BindEmailDTO dto) {
+        String email = dto.getEmail();
+        if (!RegexUtil.isEmail(email)) {
+            throw new GlobalException("邮箱格式不合法");
+        }
         UserSession session = SessionContext.getSession();
-        User user = getById(session.getUserId());
+        User user = this.lambdaQuery()
+                .select(User::getId, User::getEmail)
+                .eq(User::getId, session.getUserId())
+                .one();
         if (StrUtil.isNotEmpty(user.getEmail())) {
             throw new GlobalException("您已绑定了邮箱,不可重复绑定");
         }
-        if (!RegexUtil.isEmail(dto.getEmail())) {
-            throw new GlobalException("邮箱格式不合法");
-        }
-        if (isExistEmail(dto.getEmail())) {
+        if (isExistEmail(email, session.getCompanyId())) {
             throw new GlobalException("该邮箱已被注册");
         }
-        if (!captchaService.vertify(CaptchaType.MAIL, dto.getEmail(), dto.getCode())) {
+        if (!captchaService.vertify(CaptchaType.MAIL, email, dto.getCode())) {
             throw new GlobalException("验证码错误");
         }
-        user.setEmail(dto.getEmail());
-        this.updateById(user);
+        this.lambdaUpdate()
+                .eq(User::getId, session.getUserId())
+                .set(User::getEmail, email)
+                .update();
     }
 
     @Override

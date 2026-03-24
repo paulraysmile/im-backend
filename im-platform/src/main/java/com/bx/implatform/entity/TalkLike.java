@@ -12,18 +12,24 @@ import java.util.Date;
  * @author im-platform
  */
 @Data
-@TableName("im_talk_star")
+@TableName("im_talk_like")
 public class TalkLike {
 
     @TableId
     private Long id;
 
-    /** 动态id */
+    /**
+     * 动态id
+     */
     private Long talkId;
 
-    /** 用户id */
+    /**
+     * 用户id
+     */
     private Long userId;
 
-    /** 创建时间 */
+    /**
+     * 创建时间
+     */
     private Date createdTime;
 }

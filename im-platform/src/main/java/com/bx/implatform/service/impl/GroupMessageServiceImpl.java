@@ -247,7 +247,7 @@ public class GroupMessageServiceImpl extends ServiceImpl<GroupMessageMapper, Gro
             for (GroupMessage m : groupMessages) {
                 // 排除加群之前的消息
                 GroupMember member = groupMemberMap.get(m.getGroupId());
-                if (DateUtil.compare(member.getCreatedTime(), m.getSendTime()) > 0) {
+                if (DateUtil.compare(member.getCreateTime(), m.getSendTime()) > 0) {
                     continue;
                 }
                 // 排除不需要接收的消息

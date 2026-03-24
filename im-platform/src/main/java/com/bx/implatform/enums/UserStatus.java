@@ -6,10 +6,12 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum UserStatus {
+
     /**
      * 正常
      */
     NORMAL(0),
+
     /**
      * 注销
      */

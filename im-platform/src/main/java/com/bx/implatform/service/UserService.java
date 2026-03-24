@@ -29,6 +29,7 @@ public interface UserService extends IService<User> {
 
     /**
      * 重置用户密码
+     *
      * @param dto 重置密码dto
      */
     void resetPassword(ResetPwdDTO dto);
@@ -48,7 +49,6 @@ public interface UserService extends IService<User> {
      */
     void register(RegisterDTO dto);
 
-
     /**
      * 用户注销
      *
@@ -59,52 +59,64 @@ public interface UserService extends IService<User> {
      * 根据登录名查询用户
      *
      * @param loginName 登录名
+     * @param companyId 公司id
      * @return 用户信息
      */
-    User findUserByLoginName(String loginName);
-
+    User findUserByLoginName(String loginName, Long companyId);
 
     /**
      * 根据用户名查询用户
      *
-     * @param username 用户名
+     * @param username  用户名
+     * @param companyId 公司id
      * @return 用户信息
      */
-    User findUserByUserName(String username);
-
+    User findUserByUserName(String username, Long companyId);
 
     /**
      * 根据手机号查询用户
      *
-     * @param phone 手机号
+     * @param phone     手机号
+     * @param companyId 公司id
      * @return 用户信息
      */
-    User findUserByPhone(String phone);
-
+    User findUserByPhone(String phone, Long companyId);
 
     /**
      * 根据邮箱查询用户
      *
-     * @param email 邮箱
+     * @param email     邮箱
+     * @param companyId 公司id
      * @return 用户信息
      */
-    User findUserByEmail(String email);
+    User findUserByEmail(String email, Long companyId);
+
+    /**
+     * 是否存在用户名
+     *
+     * @param username  手机号
+     * @param companyId 公司id
+     * @return
+     */
+    boolean isExistUsername(String username, Long companyId);
 
     /**
      * 是否存在手机用户
      *
-     * @param phone 手机号
+     * @param phone     手机号
+     * @param companyId 公司id
      * @return
      */
-    Boolean isExistPhone(String phone);
+    boolean isExistPhone(String phone, Long companyId);
 
     /**
      * 是否存在邮箱用户
      *
-     * @param email 邮箱
+     * @param email     邮箱
+     * @param companyId 公司id
      * @return 用户信息
      */
-    Boolean isExistEmail(String email);
+    boolean isExistEmail(String email, Long companyId);
 
     /**
      * 更新用户信息，好友昵称和群聊昵称等冗余信息也会更新
@@ -127,13 +139,14 @@ public interface UserService extends IService<User> {
      * @return 用户信息
      */
     UserVO findSelfInfo();
+
     /**
-     * 根据用户昵称查询用户，最多返回20条数据
+     * 根据用户名查询用户
      *
-     * @param name 用户名或昵称
+     * @param username 用户名
      * @return 用户列表
      */
-    List<UserVO> findUserByName(String name);
+    List<UserVO> findUserByUsername(String username);
 
     /**
      * 查询用户，最多返回20条数据
@@ -145,35 +158,40 @@ public interface UserService extends IService<User> {
 
     /**
      * 上报用户cid
+     *
      * @param cid 用户cid
      */
     void reportCid(String cid);
 
     /**
-     *  清理用户cid
+     * 清理用户cid
      */
     void removeCid();
 
     /**
      * 开启/关闭好友验证
+     *
      * @param enabled
      */
     void setManualApprove(Boolean enabled);
 
     /**
      * 开启/关闭新消息提醒
+     *
      * @param enabled
      */
     void setAudioTip(Boolean enabled);
 
     /**
      * 绑定手机号
+     *
      * @param dto dto
      */
     void bindPhone(BindPhoneDTO dto);
 
     /**
      * 绑定邮箱
+     *
      * @param dto dto
      */
     void bindEmail(BindEmailDTO dto);
