@@ -8,16 +8,6 @@ spring:
       - classpath:web/tomcat.yml
       - classpath:web/mvc.yml
 
-mybatis-plus:
-  global-config:
-    db-config:
-      id-type: AUTO # ID自增
-      logic-not-delete-value: 0
-      logic-delete-value: 1
-  configuration:
-    map-underscore-to-camel-case: true  #开启自动驼峰命名规则
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-
 notify:
   enable: false # 是否开启推送功能（APNs/个推依赖此开关）
   debug: false # 调试模式,生产环境必须关闭，华为手机在调试模式下，一天可发送500条消息
@@ -60,4 +50,3 @@ app:
     - 2.群聊提示语优化，支持昵称高亮
     - 3.输入框支持草稿缓存
     - 4.其他细节优化
-

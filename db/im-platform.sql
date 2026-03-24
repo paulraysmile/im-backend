@@ -11,7 +11,7 @@ create table `im_user` (
   `company_id` bigint comment '归属企业id',
   `company_name` varchar(128) comment '归属企业名称',
   `is_banned` tinyint(1) default 0 comment '是否被封禁 0:否 1:是',
-	`unban_time` datetime default null comment '解除封禁时间',
+  `unban_time` datetime default null comment '解除封禁时间',
   `reason` varchar(255) default '' comment '被封禁原因',
   `type` tinyint default 1 comment '用户类型 1:普通用户 2:公开测试账户 3:审核专用账户',
   `signature` varchar(1024) default '' comment '个性签名',
@@ -22,7 +22,7 @@ create table `im_user` (
   `auth_status` tinyint DEFAULT 0 comment '实名认证状态: 0-未认证  1-审核中 2-已认证 3-认证失败',
   `last_login_time` datetime default null comment '最后登录时间',
   `last_login_ip` varchar(64) default null comment '最后登陆ip',
-  `created_time` datetime default current_timestamp comment '创建时间',
+  `create_time` datetime default current_timestamp comment '创建时间',
   unique key `idx_user_name` (user_name),
   unique key `idx_phone` (phone),
   unique key `idx_email` (email),
@@ -41,7 +41,7 @@ create table `im_friend` (
   `is_dnd` tinyint(1) default 0 comment '免打扰标识(do not disturb)  0:关闭   1:开启',
   `is_top` tinyint(1) default 0 comment '是否置顶会话',
   `deleted` tinyint(1) comment '删除标识  0：正常   1：已删除',
-  `created_time` datetime default current_timestamp comment '创建时间',
+  `create_time` datetime default current_timestamp comment '创建时间',
   key `idx_user_id` (`user_id`),
   key `idx_friend_id` (`friend_id`)
 ) engine = innodb charset = utf8mb4 comment '好友';
@@ -89,10 +89,10 @@ create table `im_group` (
   `is_allow_share_card` tinyint(1) default 1 comment '是否允许普通成员分享名片 0:否 1:是',
   `is_allow_add_other` tinyint(1) default 1 comment '是否允许普通成员群内互相加好友 0:否 1:是',
   `is_banned` tinyint(1) default 0 comment '是否被封禁 0:否 1:是',
-	`unban_time` datetime default null comment '解除封禁时间',
+  `unban_time` datetime default null comment '解除封禁时间',
   `reason` varchar(255) default '' comment '被封禁原因',
   `dissolve` tinyint(1) default 0 comment '是否已解散',
-  `created_time` datetime default current_timestamp comment '创建时间'
+  `create_time` datetime default current_timestamp comment '创建时间'
 ) engine = innodb charset = utf8mb4 comment '群';
 
 create table `im_group_member` (
@@ -111,7 +111,7 @@ create table `im_group_member` (
   `is_top` tinyint(1) default 0 comment '是否置顶会话',
   `quit` tinyint(1) default 0 comment '是否已退出',
   `quit_time` datetime default null comment '退出时间',
-  `created_time` datetime default current_timestamp comment '创建时间',
+  `create_time` datetime default current_timestamp comment '创建时间',
   `version` int default 0 comment '版本号',
   key `idx_group_id` (`group_id`),
   key `idx_user_id` (`user_id`)
@@ -297,14 +297,14 @@ create table `im_talk` (
   `files` text comment '附件列表JSON，含fileType、url、coverUrl',
   `create_time` datetime default current_timestamp comment '创建时间',
   key `idx_user_id` (`user_id`),
-  key `idx_created_time` (`created_time`)
+  key `idx_create_time` (`create_time`)
 ) engine = innodb charset = utf8mb4 comment = '朋友圈动态';
 
 create table `im_talk_star` (
   `id` bigint not null auto_increment primary key comment 'id',
   `talk_id` bigint not null comment '动态id',
   `user_id` bigint not null comment '用户id',
-  `created_time` datetime default current_timestamp comment '创建时间',
+  `create_time` datetime default current_timestamp comment '创建时间',
   unique key `uk_talk_user` (`talk_id`, `user_id`),
   key `idx_talk_id` (`talk_id`)
 ) engine = innodb charset = utf8mb4 comment = '动态点赞';

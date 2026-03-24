@@ -22,27 +22,43 @@ public class Talk {
     @TableId
     private Long id;
 
-    /** 发布者用户id */
+    /**
+     * 发布者用户id
+     */
     private Long userId;
 
-    /** 动态内容 */
+    /**
+     * 动态内容
+     */
     private String content;
 
-    /** 可见范围: 1-私密 2-好友可见 9-公开 */
+    /**
+     * 可见范围: 1-私密 2-好友可见 9-公开
+     */
     private Integer visibleScope;
 
-    /** 地址 */
+    /**
+     * 地址
+     */
     private String address;
 
-    /** 纬度 */
+    /**
+     * 纬度
+     */
     private BigDecimal latitude;
 
-    /** 经度 */
+    /**
+     * 经度
+     */
     private BigDecimal longitude;
 
-    /** 附件列表JSON，格式:[{fileType,url,coverUrl},...] */
+    /**
+     * 附件列表JSON，格式:[{fileType,url,coverUrl},...]
+     */
     private String files;
 
-    /** 创建时间 */
+    /**
+     * 创建时间
+     */
     private Date createTime;
 }

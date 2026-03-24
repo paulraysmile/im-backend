@@ -133,7 +133,7 @@ public class User {
     /**
      * 创建时间(注册时间)
      */
-    private Date createdTime;
+    private Date createTime;
 
     /**
      *  用户类型 1:普通用户 2:公开测试账户 3:审核专用账户

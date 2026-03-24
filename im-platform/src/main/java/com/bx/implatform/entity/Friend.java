@@ -17,7 +17,7 @@ import java.util.Date;
  */
 @Data
 @TableName("im_friend")
-public class Friend{
+public class Friend {
 
     /**
      * id
@@ -73,11 +73,10 @@ public class Friend{
     /**
      * 创建时间
      */
-    private Date createdTime;
+    private Date createTime;
 
     public String getShowNickName() {
         return StrUtil.blankToDefault(remarkNickName, friendNickName);
     }
-
 
 }

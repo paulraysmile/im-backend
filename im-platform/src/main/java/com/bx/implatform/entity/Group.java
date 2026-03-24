@@ -90,13 +90,11 @@ public class Group {
     /**
      * 创建时间
      */
-    private Date createdTime;
+    private Date createTime;
 
     /**
      * 是否已删除
      */
     private Boolean dissolve;
-
-
 
 }

@@ -78,7 +78,6 @@ public class GroupMember extends Model<GroupMember> {
      */
     private Boolean isDnd;
 
-
     /**
      * 是否显示置顶消息
      */
@@ -97,7 +96,7 @@ public class GroupMember extends Model<GroupMember> {
     /**
      * 创建时间
      */
-    private Date createdTime;
+    private Date createTime;
 
     /**
      * 退出时间

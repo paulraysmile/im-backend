@@ -6,6 +6,17 @@ spring:
     redis:
       host: localhost
       port: 6379
+      password: YourStrongPassword123!
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: AUTO # ID自增
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  configuration:
+    map-underscore-to-camel-case: true  #开启自动驼峰命名规则
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 minio:
   endpoint: http://127.0.0.1:9000 #内网地址
