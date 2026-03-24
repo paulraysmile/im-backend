@@ -10,12 +10,6 @@ target/
 
 # Log file
 *.log
-# prod config
-**/application-prod.yml
-
-# prod config
-im-platform/src/main/resources/application-prod.yml
-im-server/src/main/resources/application-prod.yml
 
 # local ide
 .vscode/

@@ -1,0 +1,36 @@
+server:
+  port: 8888
+  address: 0.0.0.0
+  compression:
+    enabled: true
+    min-response-size: 10KB
+    mime-types: application/json
+  max-http-request-header-size: 102400
+  tomcat:
+    uri-encoding: UTF-8
+    max-connections: 10000
+    accept-count: 1000
+    max-http-form-post-size: 100MB
+    max-swallow-size: -1
+    connection-timeout: 12000
+    threads:
+      min-spare: 100
+      max: 1000
+    mbeanregistry:
+      enabled: false
+  shutdown: graceful
+
+#management:
+#  server:
+#    port: 2${server.port}
+#  endpoints:
+#    web:
+#      exposure:
+#        include: '*'
+#  endpoint:
+#    health:
+#      enabled: true
+#      show-details: always
+#    # 开启接口优雅关闭SpringBoot应用程序，shutdown接口默认只支持post请求
+#    shutdown:
+#      enabled: false

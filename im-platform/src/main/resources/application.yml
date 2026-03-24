@@ -1,27 +1,13 @@
-server:
-  port: 8888
-  compression:
-    #是否对响应数据开启gzip压缩,默认false
-    enabled: true
-    #响应内容长度超过设置大小时进行压缩,默认值为2048(2KB,不带单位时默认为字节)
-    min-response-size: 10KB
-    #对指定的响应类型进行压缩,值是数组,用逗号隔开
-    mime-types: application/json
-
 spring:
-  profiles:
-    active: dev # 环境 dev|test|prod
   application:
     name: im-platform
-  mvc:
-    pathmatch:
-      matching-strategy: ant_path_matcher
-  servlet:
-    multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
-  jackson:
-    time-zone: GMT+8 # 东八区时区
+  profiles:
+    active: dev # 环境 dev|test|prod
+  config:
+    import:
+      - classpath:web/tomcat.yml
+      - classpath:web/mvc.yml
+
 mybatis-plus:
   global-config:
     db-config:
@@ -61,7 +47,7 @@ notify:
 
 jwt:
   accessToken:
-    expireIn: 1800 #半个小时
+    expireIn: 3600 #半个小时
     secret: MIIBIjANBgkq  # 跟im-server的secret必须一致
   refreshToken:
     expireIn: 604800 #7天
