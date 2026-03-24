@@ -146,21 +146,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public void register(RegisterDTO dto) {
+        String userName = dto.getUserName();
         // 校验用户名
-        if (RegexUtil.isPhone(dto.getUserName()) || RegexUtil.isEmail(dto.getUserName())) {
+        if (RegexUtil.isPhone(userName) || RegexUtil.isEmail(userName)) {
             throw new GlobalException("用户名不合法");
         }
-        if (!dto.getUserName().equals(sensitiveFilterUtil.filter(dto.getUserName()))) {
+        if (!userName.equals(sensitiveFilterUtil.filter(userName))) {
             throw new GlobalException("用户名包含敏感字符");
         }
-        if (StrUtil.isNotBlank(dto.getNickName()) && !dto.getNickName().equals(sensitiveFilterUtil.filter(dto.getNickName()))) {
+        String nickName = dto.getNickName();
+        if (StrUtil.isNotBlank(nickName) && !nickName.equals(sensitiveFilterUtil.filter(nickName))) {
             throw new GlobalException("昵称包含敏感字符");
         }
         Long companyId = companyService.selectIdByInviteCode(dto.getInviteCode());
         if (companyId == null) {
             throw new GlobalException("邀请码无效");
         }
-        if (isExistUsername(dto.getUserName(), companyId)) {
+        if (isExistUsername(userName, companyId)) {
             throw new GlobalException(ResultCode.USERNAME_ALREADY_REGISTER);
         }
         User user = new User();
@@ -199,15 +201,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         checkIpRegisterLimit(ip);
         user.setLastLoginIp(ip);
         user.setLastLoginTime(new Date());
-        user.setUserName(dto.getUserName());
-        user.setNickName(dto.getNickName());
+        user.setUserName(userName);
+        user.setNickName(nickName);
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         // 昵称默认和用户名保持一致
-        if (StrUtil.isEmpty(dto.getNickName())) {
-            dto.setNickName(dto.getUserName());
+        if (StrUtil.isEmpty(nickName)) {
+            dto.setNickName(userName);
         }
-        this.save(user);
-        log.info("注册用户，公司id:{},用户id:{},用户名:{},昵称:{},IP:{}", companyId, user.getId(), dto.getUserName(), dto.getNickName(), ip);
+        user.setCompanyId(companyId);
+        try {
+            this.save(user);
+        } catch (Exception e) {
+            log.error("[register] username:{} companyId:{}", e);
+            throw new GlobalException("重复注册");
+        }
+        log.info("[register] companyId:{} userId:{} username:{} nickName:{} IP:{}", companyId, user.getId(), userName, nickName, ip);
     }
 
     @Transactional

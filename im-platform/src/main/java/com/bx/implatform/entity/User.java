@@ -94,7 +94,6 @@ public class User {
      */
     private String reason;
 
-
     /**
      * 是否手动验证好友请求
      */

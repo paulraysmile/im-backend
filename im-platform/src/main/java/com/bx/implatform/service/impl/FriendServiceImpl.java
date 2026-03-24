@@ -79,11 +79,9 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     @Override
     public List<FriendVO> findFriends() {
         List<Friend> friends = this.findAllFriends();
-        List<Long> ids =
-            friends.stream().filter(f -> !f.getDeleted()).map(Friend::getFriendId).collect(Collectors.toList());
+        List<Long> ids = friends.stream().filter(f -> !f.getDeleted()).map(Friend::getFriendId).collect(Collectors.toList());
         Map<Long, List<IMTerminalType>> terminalMap = imClient.getOnlineTerminal(ids);
-        return friends.stream().map((f) -> this.convert(f, terminalMap.get(f.getFriendId())))
-            .collect(Collectors.toList());
+        return friends.stream().map((f) -> this.convert(f, terminalMap.get(f.getFriendId()))).collect(Collectors.toList());
     }
 
     @RedisLock(prefixKey = RedisKey.IM_LOCK_FRIEND_ADD, key = "#userId+':'+#friendId")

@@ -119,6 +119,11 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         }
         // 新请求
         User sender = userService.getById(session.getUserId());
+
+
+
+
+
         User receiver = userService.getById(dto.getFriendId());
         request = new FriendRequest();
         request.setSendId(session.getUserId());

@@ -7,8 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
-
-
 @Slf4j
 @EnableAspectJAutoProxy(exposeProxy = true)
 @ComponentScan(basePackages = {"com.bx"})

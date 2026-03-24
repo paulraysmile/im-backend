@@ -3,8 +3,10 @@ package com.bx.implatform;
 import cn.hutool.core.util.IdUtil;
 import com.bx.implatform.entity.GroupMessage;
 import com.bx.implatform.entity.PrivateMessage;
+import com.bx.implatform.entity.User;
 import com.bx.implatform.service.GroupMessageService;
 import com.bx.implatform.service.PrivateMessageService;
+import com.bx.implatform.service.UserService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,20 @@ public class IMPlatformTests {
     private PrivateMessageService privateMessageService;
     @Resource
     private GroupMessageService groupMessageService;
+    @Resource
+    private UserService userService;
+
+    @Test
+    public void testInsertUser() {
+        //User user = new User();
+        //user.setUserName("123456789");
+        //user.setNickName("Jack");
+        //user.setPassword("123456789");
+        //user.setCompanyId(1L);
+        //userService.save(user);
+        boolean exists = userService.lambdaQuery().eq(User::getId, 1L).exists();
+        System.out.println("exists:" + exists);
+    }
 
     @Test
     public void testInsertPrivateMessage() {

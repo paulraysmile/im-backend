@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 好友审核超时任务,将一个月未处理的请求置为超时状态
+ *
  * @author Blue
  * @version 1.0
  */
@@ -26,14 +27,16 @@ public class FriendRequestExpireTask {
 
     private final FriendRequestService friendRequestService;
 
-    @Scheduled(fixedRate = 10,timeUnit = TimeUnit.MINUTES)
+    @Scheduled(fixedRate = 10, timeUnit = TimeUnit.MINUTES)
     public void run() {
         log.info("【定时任务】好友审核超时处理...");
         Date minDate = DateUtils.addMonths(new Date(), -1);
+
+
         LambdaUpdateWrapper<FriendRequest> wrapper = Wrappers.lambdaUpdate();
-        wrapper.le(FriendRequest::getApplyTime,minDate);
+        wrapper.le(FriendRequest::getApplyTime, minDate);
         wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
-        wrapper.set(FriendRequest::getStatus,FriendRequestStatus.EXPIRED.getCode());
+        wrapper.set(FriendRequest::getStatus, FriendRequestStatus.EXPIRED.getCode());
         friendRequestService.update(wrapper);
     }
 
