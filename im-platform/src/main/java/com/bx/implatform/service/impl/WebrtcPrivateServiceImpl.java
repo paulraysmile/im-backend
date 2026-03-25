@@ -39,7 +39,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
 
     private final IMClient imClient;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final PrivateMessageService privateMessageService;
+    private final PrivateMessageCompanyService privateMessageService;
     private final RtcPrivateNotifyService rtcPrivateNotifyService;
     private final UserBlacklistService userBlacklistService;
     private final UserStateUtils userStateUtils;
@@ -62,7 +62,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         webrtcSession.setAcceptor(new IMUserInfo(uid, IMTerminalType.UNKNOW.code()));
         webrtcSession.setMode(mode);
         if (userStateUtils.isBusy(uid)) {
-            this.sendActMessage(webrtcSession, MessageStatus.PENDING, "未接通");
+            this.sendActMessage(session.getCompanyId(), webrtcSession, MessageStatus.PENDING, "未接通");
             throw new GlobalException("对方正忙,请稍后重试");
         }
         // 保存rtc session
@@ -78,7 +78,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         // 对离线用户进行离线呼叫
         rtcPrivateNotifyService.setup(webrtcSession);
         // 超时未接听检测
-        detectTimeout(webrtcSession.getChatId(), session.getUserId(), uid);
+        detectTimeout(session.getCompanyId(), webrtcSession.getChatId(), session.getUserId(), uid);
         log.info("发起呼叫,sid:{},uid:{}", session.getUserId(), uid);
     }
 
@@ -112,7 +112,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         // 向发起人推送拒绝通话信令
         sendRtcMessage2(webrtcSession, MessageType.RTC_REJECT, uid, "", true);
         // 生成通话消息
-        sendActMessage(webrtcSession, MessageStatus.READED, "已拒绝");
+        sendActMessage(session.getCompanyId(), webrtcSession, MessageStatus.READED, "已拒绝");
         // 停止离线呼叫
         rtcPrivateNotifyService.stop(webrtcSession, "已在其他设备拒绝");
         log.info("拒绝通话,sid:{},uid:{}", session.getUserId(), uid);
@@ -131,7 +131,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         // 向对方所有终端推送取消通话信令
         sendRtcMessage1(MessageType.RTC_CANCEL, uid);
         // 生成通话消息
-        sendActMessage(webrtcSession, MessageStatus.PENDING, "已取消");
+        sendActMessage(session.getCompanyId(), webrtcSession, MessageStatus.PENDING, "已取消");
         // 停止离线呼叫
         rtcPrivateNotifyService.stop(webrtcSession, "通话已取消");
         log.info("取消通话,sid:{},uid:{}", session.getUserId(), uid);
@@ -150,7 +150,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         // 向发起方推送通话失败信令
         sendRtcMessage2(webrtcSession, MessageType.RTC_FAILED, uid, reason, false);
         // 生成消息
-        sendActMessage(webrtcSession, MessageStatus.READED, "未接通");
+        sendActMessage(session.getCompanyId(), webrtcSession, MessageStatus.READED, "未接通");
         log.info("通话失败,sid:{},uid:{},reason:{}", session.getUserId(), uid, reason);
     }
 
@@ -167,7 +167,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         // 向对方推送挂断通话信令
         sendRtcMessage2(webrtcSession, MessageType.RTC_HANDUP, uid, "", false);
         // 生成通话消息
-        sendActMessage(webrtcSession, MessageStatus.READED, "通话时长 " + chatTimeText(webrtcSession));
+        sendActMessage(session.getCompanyId(), webrtcSession, MessageStatus.READED, "通话时长 " + chatTimeText(webrtcSession));
         log.info("挂断通话,sid:{},uid:{}", session.getUserId(), uid);
     }
 
@@ -225,6 +225,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         userStateUtils.expire(session.getUserId());
     }
 
+    @Override
     public WebrtcPrivateInfoVO info(Long uid) {
         WebrtcPrivateInfoVO vo = new WebrtcPrivateInfoVO();
         UserSession session = SessionContext.getSession();
@@ -310,9 +311,10 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         imClient.sendPrivateMessage(sendMessage);
     }
 
-    private void sendActMessage(WebrtcPrivateSession rtcSession, MessageStatus status, String content) {
+    private void sendActMessage(Long companyId, WebrtcPrivateSession rtcSession, MessageStatus status, String content) {
         // 保存消息
         PrivateMessage msg = new PrivateMessage();
+        msg.setCompanyId(companyId);
         msg.setSendId(rtcSession.getHost().getId());
         msg.setRecvId(rtcSession.getAcceptor().getId());
         msg.setContent(content);
@@ -348,7 +350,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         return strTime;
     }
 
-    private void detectTimeout(Long chatId, Long userId, Long uid) {
+    private void detectTimeout(Long companyId, Long chatId, Long userId, Long uid) {
         ScheduledThreadPoolExecutor excutor = ThreadPoolExecutorFactory.getThreadPoolExecutor();
         excutor.schedule(() -> {
             String key = getWebRtcSessionKey(userId, uid);
@@ -382,7 +384,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
             sendMessage.setData(messageInfo);
             imClient.sendPrivateMessage(sendMessage);
             // 生成消息
-            sendActMessage(webrtcSession, MessageStatus.PENDING, "未接通");
+            sendActMessage(companyId, webrtcSession, MessageStatus.PENDING, "未接通");
             // 停止离线呼叫
             rtcPrivateNotifyService.stop(webrtcSession, "您未接听");
             log.info("通话失败,sid:{},uid:{},reason:{}", userId, uid, "超时");

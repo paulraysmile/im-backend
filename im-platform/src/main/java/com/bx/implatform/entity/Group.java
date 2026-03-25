@@ -23,6 +23,11 @@ public class Group {
     private Long id;
 
     /**
+     * 归属企业id
+     */
+    private Long companyId;
+
+    /**
      * 群名字
      */
     private String name;

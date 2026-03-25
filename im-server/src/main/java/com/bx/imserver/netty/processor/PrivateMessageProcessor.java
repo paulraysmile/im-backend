@@ -60,7 +60,7 @@ public class PrivateMessageProcessor extends AbstractMessageProcessor<IMRecvInfo
             result.setCode(sendCode.code());
             result.setData(recvInfo.getData());
             // 推送到结果队列
-            String key = StrUtil.join(":", ChatRedisKey.IM_RESULT_PRIVATE_QUEUE,recvInfo.getServiceName());
+            String key = StrUtil.join(":", ChatRedisKey.IM_RESULT_PRIVATE_QUEUE, recvInfo.getServiceName());
             redisMQTemplate.opsForList().rightPush(key, result);
         }
     }

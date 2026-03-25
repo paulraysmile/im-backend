@@ -7,19 +7,15 @@ import lombok.Data;
 
 import java.util.List;
 
-/**
- * @author Blue
- * @version 1.0
- */
 @Data
 @Schema(description = "删除消息DTO")
 public class MessageDeleteDTO {
 
-    @NotNull(message = "会话id不可为空")
     @Schema(description = "会话id,即好友id/群id")
+    @NotNull(message = "会话id不可为空")
     private Long chatId;
 
-    @NotEmpty(message = "消息id不可为空")
     @Schema(description = "消息id")
+    @NotEmpty(message = "消息id不可为空")
     private List<Long> messageIds;
 }

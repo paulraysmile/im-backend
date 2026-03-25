@@ -30,6 +30,8 @@ public enum MessageType {
     RECALL(10, "撤回"),
     READED(11, "已读"),
     RECEIPT(12, "消息已读回执"),
+    REMOVED(14, "移除消息"),
+    REMOVED_ALL(15, "移除全部消息"),
     TIP_TIME(20,"时间提示"),
     TIP_TEXT(21,"文字提示"),
     LOADING(30,"加载中标记"),

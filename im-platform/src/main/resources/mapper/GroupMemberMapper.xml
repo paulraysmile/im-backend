@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bx.implatform.mapper.GroupMemberMapper">
+
+    <select id="isNotAllowAdd" resultType="java.lang.Integer">
+        SELECT 1
+        FROM `im_group_member` t
+        WHERE
+            t.`quit` = 0
+            AND t.user_id = #{recvId}
+            AND t.`group_id` IN (
+                SELECT t1.`group_id` FROM `im_group_member` t1
+                INNER JOIN `im_group` t2 ON t1.`group_id` = t2.`id` AND t2.`is_allow_add_other` = 0
+                WHERE t1.`user_id` = #{sendId} AND t1.`quit` = 0
+            )
+        LIMIT 1
+    </select>
+
+    <!--
+        WITH UserGroupCounts AS (
+            SELECT group_id, user_id, COUNT(*) AS cnt
+            FROM group_members
+            WHERE user_id IN (1, 2)
+            GROUP BY group_id, user_id
+        )
+        SELECT group_id
+        FROM UserGroupCounts
+        GROUP BY group_id
+        HAVING COUNT(DISTINCT user_id) = 2;
+    -->
+    <select id="findSameGroups" resultType="com.bx.implatform.vo.GroupInfoVO">
+        SELECT gm1.group_id,g.name AS groupName,g.head_image_thumb
+        FROM im_group_member gm1
+                 INNER JOIN im_group_member gm2 ON gm1.group_id = gm2.group_id AND gm2.quit = 0 AND gm2.user_id = #{friendId}
+                 INNER JOIN im_group g ON g.id = gm1.group_id AND g.dissolve = 0
+        WHERE gm1.user_id = #{userId} AND gm1.quit = 0
+    </select>
+</mapper>

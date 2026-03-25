@@ -13,7 +13,7 @@ import com.bx.implatform.entity.GroupMessage;
 import com.bx.implatform.enums.MessageStatus;
 import com.bx.implatform.enums.MessageType;
 import com.bx.implatform.service.GroupMemberService;
-import com.bx.implatform.service.GroupMessageService;
+import com.bx.implatform.service.GroupMessageCompanyService;
 import com.bx.implatform.util.BeanUtils;
 import com.bx.implatform.vo.GroupMessageVO;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class GroupBannedConsumerTask extends RedisMQConsumer<GroupBanDTO> {
 
     private final IMClient imClient;
 
-    private final GroupMessageService groupMessageService;
+    private final GroupMessageCompanyService groupMessageService;
 
     private final GroupMemberService groupMemberService;
 
@@ -47,6 +47,7 @@ public class GroupBannedConsumerTask extends RedisMQConsumer<GroupBanDTO> {
         List<Long> userIds = groupMemberService.findUserIdsByGroupId(dto.getId());
         // 保存消息
         GroupMessage msg = new GroupMessage();
+        msg.setCompanyId(dto.getCompanyId());
         msg.setGroupId(dto.getId());
         String tip = "本群聊已被管理员封禁,原因:" + dto.getReason();
         msg.setContent(tip);

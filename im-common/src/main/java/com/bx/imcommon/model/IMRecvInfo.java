@@ -31,6 +31,7 @@ public class IMRecvInfo {
      * 当前服务名（回调发送结果使用）
      */
     private String serviceName;
+
     /**
      * 推送消息体
      */

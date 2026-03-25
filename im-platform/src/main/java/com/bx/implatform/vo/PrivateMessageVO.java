@@ -11,8 +11,11 @@ import java.util.Date;
 @Schema(description = "私聊消息VO")
 public class PrivateMessageVO {
 
-    @Schema(description = " 消息id")
+    @Schema(description = "消息id")
     private Long id;
+
+    @Schema(description = "归属企业id")
+    private Long companyId;
 
     @Schema(description = "临时id")
     private String tmpId;
@@ -38,6 +41,5 @@ public class PrivateMessageVO {
     @Schema(description = " 发送时间")
     @JsonSerialize(using = DateToLongSerializer.class)
     private Date sendTime;
-
 
 }

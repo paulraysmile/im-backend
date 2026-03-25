@@ -133,6 +133,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
      * @param userId   用户id
      * @param friendId 好友的用户id
      */
+    @Override
     @CacheEvict(key = "#userId+':'+#friendId")
     public void bindFriend(Long userId, Long friendId) {
         QueryWrapper<Friend> wrapper = new QueryWrapper<>();

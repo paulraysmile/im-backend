@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 public class WebrtcGroupServiceImpl implements WebrtcGroupService {
     private final GroupService groupService;
     private final GroupMemberService groupMemberService;
-    private final GroupMessageService groupMessageService;
+    private final GroupMessageCompanyService groupMessageService;
     private final RtcGroupNotifyService rtcGroupNotifyService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final IMClient imClient;
@@ -628,6 +628,7 @@ public class WebrtcGroupServiceImpl implements WebrtcGroupService {
         List<Long> userIds = groupMemberService.findUserIdsByGroupId(groupId);
         // 保存消息
         GroupMessage msg = new GroupMessage();
+        msg.setCompanyId(userSession.getCompanyId());
         msg.setGroupId(groupId);
         msg.setContent(content);
         msg.setSendId(userSession.getUserId());
@@ -680,17 +681,17 @@ public class WebrtcGroupServiceImpl implements WebrtcGroupService {
             // 还在列表中的用户
             List<Long> existUserIds = userIds.stream().filter(id -> isExist(webrtcSession, id)).toList();
             // 还在列表中，但是未加入通话的用户
-            List<Long> timeoutUserIds =
-                existUserIds.stream().filter(id -> !isInchat(webrtcSession, id)).collect(Collectors.toList());
+            List<Long> timeoutUserIds = existUserIds.stream()
+                    .filter(id -> !isInchat(webrtcSession, id))
+                    .collect(Collectors.toList());
             if (timeoutUserIds.isEmpty()) {
                 return;
             }
             // 列表所有用户id
-            List<Long> recvIds =
-                webrtcSession.getUserInfos().stream().map(WebrtcUserInfo::getId).collect(Collectors.toList());
+            List<Long> recvIds = webrtcSession.getUserInfos().stream().map(WebrtcUserInfo::getId).collect(Collectors.toList());
             // 将超时用户从列表中移除
-            List<WebrtcUserInfo> userInfos =
-                webrtcSession.getUserInfos().stream().filter(user -> !timeoutUserIds.contains(user.getId()))
+            List<WebrtcUserInfo> userInfos = webrtcSession.getUserInfos().stream()
+                    .filter(user -> !timeoutUserIds.contains(user.getId()))
                     .collect(Collectors.toList());
             webrtcSession.setUserInfos(userInfos);
             saveWebrtcSession(groupId, webrtcSession);

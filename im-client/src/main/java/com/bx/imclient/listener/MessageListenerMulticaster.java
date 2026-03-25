@@ -1,6 +1,5 @@
 package com.bx.imclient.listener;
 
-
 import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.bx.imclient.annotation.IMListener;
@@ -18,21 +17,21 @@ import java.util.List;
 public class MessageListenerMulticaster {
 
     @Autowired(required = false)
-    private List<MessageListener>  messageListeners  = Collections.emptyList();
+    private List<MessageListener> messageListeners = Collections.emptyList();
 
-    public  void multicast(IMListenerType listenerType, List<IMSendResult> results){
-        if(CollUtil.isEmpty(results)){
+    public void multicast(IMListenerType listenerType, List<IMSendResult> results) {
+        if (CollUtil.isEmpty(results)) {
             return;
         }
-        for(MessageListener listener:messageListeners){
+        for (MessageListener listener : messageListeners) {
             IMListener annotation = listener.getClass().getAnnotation(IMListener.class);
-            if(annotation!=null && (annotation.type().equals(IMListenerType.ALL) || annotation.type().equals(listenerType))){
-                results.forEach(result->{
+            if (annotation != null && (annotation.type().equals(IMListenerType.ALL) || annotation.type().equals(listenerType))) {
+                results.forEach(result -> {
                     // 将data转回对象类型
-                    if(result.getData() instanceof JSONObject){
+                    if (result.getData() instanceof JSONObject) {
                         Type superClass = listener.getClass().getGenericInterfaces()[0];
                         Type type = ((ParameterizedType) superClass).getActualTypeArguments()[0];
-                        JSONObject data = (JSONObject)result.getData();
+                        JSONObject data = (JSONObject) result.getData();
                         result.setData(data.toJavaObject(type));
                     }
                 });
@@ -41,6 +40,5 @@ public class MessageListenerMulticaster {
             }
         }
     }
-
 
 }

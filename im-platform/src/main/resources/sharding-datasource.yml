@@ -52,19 +52,29 @@ rules:
         type: INLINE
         props:
           algorithm-expression: im_group_message_${company_id}
+      im_message_deletion_inline:
+        type: INLINE
+        props:
+          algorithm-expression: im_message_deletion_${company_id}
     tables:
       im_private_message:
-        actualDataNodes: im_message.im_private_message_${1..20}
+        actualDataNodes: im_message.im_private_message_${1..5}
         tableStrategy:
           standard:
             shardingColumn: company_id
             shardingAlgorithmName: im_private_message_inline
       im_group_message:
-        actualDataNodes: im_message.im_group_message_${1..20}
+        actualDataNodes: im_message.im_group_message_${1..5}
         tableStrategy:
           standard:
             shardingColumn: company_id
             shardingAlgorithmName: im_group_message_inline
+      im_message_deletion:
+        actualDataNodes: im_message.im_message_deletion_${1..5}
+        tableStrategy:
+          standard:
+            shardingColumn: company_id
+            shardingAlgorithmName: im_message_deletion_inline
 
 props:
   sql-show: true

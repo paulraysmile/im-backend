@@ -1,15 +1,18 @@
 package com.bx.implatform.service.impl;
 
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bx.implatform.contant.RedisKey;
 import com.bx.implatform.entity.GroupMember;
 import com.bx.implatform.mapper.GroupMemberMapper;
 import com.bx.implatform.service.GroupMemberService;
+import com.bx.implatform.vo.GroupInfoVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
@@ -46,8 +49,9 @@ public class GroupMemberServiceImpl extends ServiceImpl<GroupMemberMapper, Group
     }
 
     @Override
-    public GroupMember findByGroupAndUserId(Long groupId, Long userId) {
+    public GroupMember findByGroupAndUserId(Long groupId, Long userId, SFunction<GroupMember, ?>... columns) {
         LambdaQueryWrapper<GroupMember> wrapper = Wrappers.lambdaQuery();
+        wrapper.select(ArrayUtil.isNotEmpty(columns), columns);
         wrapper.eq(GroupMember::getGroupId, groupId);
         wrapper.eq(GroupMember::getUserId, userId);
         return this.getOne(wrapper);
@@ -62,16 +66,18 @@ public class GroupMemberServiceImpl extends ServiceImpl<GroupMemberMapper, Group
     }
 
     @Override
-    public List<GroupMember> findByUserId(Long userId) {
+    public List<GroupMember> findByUserId(Long userId, SFunction<GroupMember, ?>... columns) {
         LambdaQueryWrapper<GroupMember> wrapper = Wrappers.lambdaQuery();
+        wrapper.select(ArrayUtil.isNotEmpty(columns), columns);
         wrapper.eq(GroupMember::getUserId, userId);
         wrapper.eq(GroupMember::getQuit, false);
         return this.list(wrapper);
     }
 
     @Override
-    public List<GroupMember> findQuitMembers(Long userId, Date minQuitTime) {
+    public List<GroupMember> findQuitMembers(Long userId, Date minQuitTime, SFunction<GroupMember, ?>... columns) {
         LambdaQueryWrapper<GroupMember> wrapper = Wrappers.lambdaQuery();
+        wrapper.select(ArrayUtil.isNotEmpty(columns), columns);
         wrapper.eq(GroupMember::getUserId, userId);
         wrapper.eq(GroupMember::getQuit, true);
         wrapper.ge(GroupMember::getQuitTime, minQuitTime);
@@ -233,6 +239,20 @@ public class GroupMemberServiceImpl extends ServiceImpl<GroupMemberMapper, Group
         Long version = getNextVersion(member.getGroupId());
         member.setVersion(version);
         return super.saveOrUpdate(member);
+    }
+
+    @Override
+    public boolean isAllowAdd(Long sendId, Long recvId) {
+        Integer result = this.getBaseMapper().isNotAllowAdd(sendId, recvId);
+        if (result == null) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public List<GroupInfoVO> findSameGroups(Long userId, Long friendId) {
+        return this.getBaseMapper().findSameGroups(userId, friendId);
     }
 
     /**

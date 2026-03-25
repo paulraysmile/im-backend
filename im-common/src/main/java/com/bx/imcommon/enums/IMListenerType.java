@@ -4,18 +4,22 @@ import lombok.AllArgsConstructor;
 
 @AllArgsConstructor
 public enum IMListenerType {
+
     /**
      * 全部消息
      */
     ALL(0, "全部消息"),
+
     /**
      * 私聊消息
      */
     PRIVATE_MESSAGE(1, "私聊消息"),
+
     /**
      * 群聊消息
      */
     GROUP_MESSAGE(2, "群聊消息"),
+
     /**
      * 系统消息
      */
@@ -25,7 +29,6 @@ public enum IMListenerType {
      *  用户事件
      */
     USER_EVENT(4, "用户事件");
-
 
     private final Integer code;
 

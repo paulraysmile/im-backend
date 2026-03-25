@@ -15,6 +15,7 @@ import com.bx.implatform.config.props.NotifyProperties;
 import com.bx.implatform.config.props.RegistrationProperties;
 import com.bx.implatform.contant.RedisKey;
 import com.bx.implatform.dto.*;
+import com.bx.implatform.entity.Company;
 import com.bx.implatform.entity.Friend;
 import com.bx.implatform.entity.GroupMember;
 import com.bx.implatform.entity.User;
@@ -158,10 +159,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (StrUtil.isNotBlank(nickName) && !nickName.equals(sensitiveFilterUtil.filter(nickName))) {
             throw new GlobalException("昵称包含敏感字符");
         }
-        Long companyId = companyService.selectIdByInviteCode(dto.getInviteCode());
-        if (companyId == null) {
+        Company company = companyService.lambdaQuery()
+                .select(Company::getId, Company::getCompanyName)
+                .eq(Company::getInviteCode, dto.getInviteCode())
+                .one();
+        if (company == null) {
             throw new GlobalException("邀请码无效");
         }
+        Long companyId = company.getId();
         if (isExistUsername(userName, companyId)) {
             throw new GlobalException(ResultCode.USERNAME_ALREADY_REGISTER);
         }
@@ -209,6 +214,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             dto.setNickName(userName);
         }
         user.setCompanyId(companyId);
+        user.setCompanyName(company.getCompanyName());
         try {
             this.save(user);
         } catch (Exception e) {

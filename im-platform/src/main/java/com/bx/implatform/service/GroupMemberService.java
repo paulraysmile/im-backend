@@ -1,7 +1,9 @@
 package com.bx.implatform.service;
 
+import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.bx.implatform.entity.GroupMember;
+import com.bx.implatform.vo.GroupInfoVO;
 
 import java.util.Date;
 import java.util.List;
@@ -15,7 +17,7 @@ public interface GroupMemberService extends IService<GroupMember> {
      * @param userId  用户id
      * @return 群聊成员信息
      */
-    GroupMember findByGroupAndUserId(Long groupId, Long userId);
+    GroupMember findByGroupAndUserId(Long groupId, Long userId, SFunction<GroupMember, ?>... columns);
 
     /**
      * 根据群聊id和用户id查询群聊成员
@@ -32,7 +34,7 @@ public interface GroupMemberService extends IService<GroupMember> {
      * @param userId 用户id
      * @return 成员列表
      */
-    List<GroupMember> findByUserId(Long userId);
+    List<GroupMember> findByUserId(Long userId, SFunction<GroupMember, ?>... columns);
 
     /**
      * 根据用户id查询某段时间内退的群
@@ -41,7 +43,7 @@ public interface GroupMemberService extends IService<GroupMember> {
      * @param minQuitTime 退群时间
      * @return 成员列表
      */
-    public List<GroupMember> findQuitMembers(Long userId, Date minQuitTime);
+    public List<GroupMember> findQuitMembers(Long userId, Date minQuitTime, SFunction<GroupMember, ?>... columns);
 
     /**
      * 根据群聊id查询群聊成员（包括已退出）
@@ -172,5 +174,9 @@ public interface GroupMemberService extends IService<GroupMember> {
 
     @Override
     boolean saveOrUpdate(GroupMember member);
+
+    boolean isAllowAdd(Long sendId, Long recvId);
+
+    List<GroupInfoVO> findSameGroups(Long userId, Long friendId);
 
 }

@@ -25,6 +25,16 @@ public class User {
     private Long id;
 
     /**
+     * 归属企业id
+     */
+    private Long companyId;
+
+    /**
+     * 归属企业名称
+     */
+    private String companyName;
+
+    /**
      * 用户名
      */
     private String userName;
@@ -68,16 +78,6 @@ public class User {
      * 个性签名
      */
     private String signature;
-
-    /**
-     * 归属企业id
-     */
-    private Long companyId;
-
-    /**
-     * 归属企业名称
-     */
-    private String companyName;
 
     /**
      * 账号是否被封禁

@@ -4,10 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-/**
- * @author Blue
- * @version 1.0
- */
 @Data
 @Schema(description = "删除会话DTO")
 public class ChatDeleteDTO {

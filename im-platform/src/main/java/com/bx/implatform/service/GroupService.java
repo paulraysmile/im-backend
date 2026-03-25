@@ -207,10 +207,4 @@ public interface GroupService extends IService<Group> {
      */
     void setAllowAddOther(GroupAllowAddOtherDTO dto);
 
-    /**
-     * 校验普通成员是否可在群内加对方为好友
-     * @param senderId 申请方
-     * @param recvId 被申请方
-     */
-    void checkAllowAddFriendFromGroup(Long senderId, Long recvId);
 }

@@ -19,7 +19,6 @@ public class IMGroupMessage<T> {
      */
     private List<Long> recvIds = new LinkedList<>();
 
-
     /**
      * 接收者终端类型,默认全部
      */
@@ -39,6 +38,5 @@ public class IMGroupMessage<T> {
      * 消息内容
      */
     private T data;
-
 
 }

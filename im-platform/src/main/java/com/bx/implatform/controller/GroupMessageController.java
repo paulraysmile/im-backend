@@ -1,13 +1,9 @@
 package com.bx.implatform.controller;
 
-import com.bx.implatform.dto.ChatDeleteDTO;
-import com.bx.implatform.dto.GroupMessageRemoveAllDTO;
-import com.bx.implatform.dto.GroupMessageRemoveDTO;
-import com.bx.implatform.dto.GroupMessageDTO;
-import com.bx.implatform.dto.MessageDeleteDTO;
+import com.bx.implatform.dto.*;
 import com.bx.implatform.result.Result;
 import com.bx.implatform.result.ResultUtils;
-import com.bx.implatform.service.GroupMessageService;
+import com.bx.implatform.service.GroupMessageCompanyService;
 import com.bx.implatform.vo.GroupMessageVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,7 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class GroupMessageController {
 
-    private final GroupMessageService groupMessageService;
+    private final GroupMessageCompanyService groupMessageService;
 
     @PostMapping("/send")
     @Operation(summary = "发送群聊消息", description = "发送群聊消息")
@@ -53,8 +49,7 @@ public class GroupMessageController {
 
     @GetMapping("/findReadedUsers")
     @Operation(summary = "获取已读用户id", description = "获取消息已读用户列表")
-    public Result<List<Long>> findReadedUsers(@RequestParam Long groupId,
-        @RequestParam Long messageId) {
+    public Result<List<Long>> findReadedUsers(@RequestParam Long groupId, @RequestParam Long messageId) {
         return ResultUtils.success(groupMessageService.findReadedUsers(groupId, messageId));
     }
 
@@ -62,6 +57,13 @@ public class GroupMessageController {
     @Operation(summary = "删除消息", description = "根据消息id列表删除消息")
     public Result deleteMessage(@Valid @RequestBody MessageDeleteDTO dto) {
         groupMessageService.deleteMessage(dto);
+        return ResultUtils.success();
+    }
+
+    @DeleteMapping("/deleteChat")
+    @Operation(summary = "删除会话", description = "删除会话以及会话中的所有消息")
+    public Result deleteChat(@Valid @RequestBody ChatDeleteDTO dto) {
+        groupMessageService.deleteChat(dto);
         return ResultUtils.success();
     }
 
@@ -75,13 +77,6 @@ public class GroupMessageController {
     @Operation(summary = "移除全部群聊消息", description = "将当前用户在该群聊中的全部消息标记为已删除")
     public Result<GroupMessageVO> removeAll(@Valid @RequestBody GroupMessageRemoveAllDTO dto) {
         return ResultUtils.success(groupMessageService.removeAll(dto));
-    }
-
-    @DeleteMapping("/deleteChat")
-    @Operation(summary = "删除会话", description = "删除会话以及会话中的所有消息")
-    public Result deleteChat(@Valid @RequestBody ChatDeleteDTO dto) {
-        groupMessageService.deleteChat(dto);
-        return ResultUtils.success();
     }
 
 }

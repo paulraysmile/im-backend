@@ -84,8 +84,7 @@ public class IMSender {
         if (!Objects.isNull(message.getRecvId())) {
             for (Integer terminal : message.getRecvTerminals()) {
                 // 获取对方连接的channelId
-                String key =
-                    String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getRecvId().toString(), terminal.toString());
+                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getRecvId().toString(), terminal.toString());
                 Integer serverId = (Integer)redisMQTemplate.opsForValue().get(key);
                 // 如果对方在线，将数据存储至redis，等待拉取推送
                 if (serverId != null) {
@@ -127,8 +126,7 @@ public class IMSender {
                     recvInfo.setSendResult(false);
                     recvInfo.setCmd(IMCmdType.PRIVATE_MESSAGE.code());
                     recvInfo.setSender(message.getSender());
-                    recvInfo.setReceivers(
-                        Collections.singletonList(new IMUserInfo(message.getSender().getId(), terminal)));
+                    recvInfo.setReceivers(Collections.singletonList(new IMUserInfo(message.getSender().getId(), terminal)));
                     recvInfo.setData(message.getData());
                     redisMQTemplate.opsForList().rightPush(sendKey, recvInfo);
                 }

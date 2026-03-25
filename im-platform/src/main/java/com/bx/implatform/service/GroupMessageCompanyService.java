@@ -1,17 +1,13 @@
 package com.bx.implatform.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.bx.implatform.dto.ChatDeleteDTO;
-import com.bx.implatform.dto.GroupMessageRemoveAllDTO;
-import com.bx.implatform.dto.GroupMessageRemoveDTO;
-import com.bx.implatform.dto.GroupMessageDTO;
-import com.bx.implatform.dto.MessageDeleteDTO;
+import com.bx.implatform.dto.*;
 import com.bx.implatform.entity.GroupMessage;
 import com.bx.implatform.vo.GroupMessageVO;
 
 import java.util.List;
 
-public interface GroupMessageService extends IService<GroupMessage> {
+public interface GroupMessageCompanyService extends IService<GroupMessage> {
 
     /**
      * 发送群聊消息(高并发接口，查询mysql接口都要进行缓存)

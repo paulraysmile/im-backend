@@ -5,7 +5,6 @@ import lombok.Data;
 
 import java.util.List;
 
-
 @Data
 public class IMPrivateMessage<T> {
 
@@ -18,7 +17,6 @@ public class IMPrivateMessage<T> {
      * 接收者id
      */
     private Long recvId;
-
 
     /**
      * 接收者终端类型,默认全部
@@ -39,6 +37,5 @@ public class IMPrivateMessage<T> {
      * 消息内容
      */
     private T data;
-
 
 }

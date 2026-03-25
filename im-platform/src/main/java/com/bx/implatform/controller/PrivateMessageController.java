@@ -5,7 +5,7 @@ import com.bx.implatform.dto.MessageDeleteDTO;
 import com.bx.implatform.dto.PrivateMessageDTO;
 import com.bx.implatform.result.Result;
 import com.bx.implatform.result.ResultUtils;
-import com.bx.implatform.service.PrivateMessageService;
+import com.bx.implatform.service.PrivateMessageCompanyService;
 import com.bx.implatform.vo.PrivateMessageVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,7 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PrivateMessageController {
 
-    private final PrivateMessageService privateMessageService;
+    private final PrivateMessageCompanyService privateMessageService;
 
     @PostMapping("/send")
     @Operation(summary = "发送消息", description = "发送私聊消息")

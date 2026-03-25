@@ -9,7 +9,7 @@ import com.bx.implatform.vo.PrivateMessageVO;
 
 import java.util.List;
 
-public interface PrivateMessageService extends IService<PrivateMessage> {
+public interface PrivateMessageCompanyService extends IService<PrivateMessage> {
 
     /**
      * 发送私聊消息(高并发接口，查询mysql接口都要进行缓存)

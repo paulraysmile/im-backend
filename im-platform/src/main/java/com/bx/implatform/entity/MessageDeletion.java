@@ -23,6 +23,11 @@ public class MessageDeletion {
     private Long id;
 
     /**
+     * 公司id
+     */
+    private Long companyId;
+
+    /**
      * 用户id
      */
     private Long userId;

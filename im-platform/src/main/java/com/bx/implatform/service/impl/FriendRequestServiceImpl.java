@@ -17,11 +17,7 @@ import com.bx.implatform.enums.FriendRequestStatus;
 import com.bx.implatform.enums.MessageType;
 import com.bx.implatform.exception.GlobalException;
 import com.bx.implatform.mapper.FriendRequestMapper;
-import com.bx.implatform.service.FriendRequestService;
-import com.bx.implatform.service.FriendService;
-import com.bx.implatform.service.GroupService;
-import com.bx.implatform.service.UserBlacklistService;
-import com.bx.implatform.service.UserService;
+import com.bx.implatform.service.*;
 import com.bx.implatform.session.SessionContext;
 import com.bx.implatform.session.UserSession;
 import com.bx.implatform.util.BeanUtils;
@@ -50,12 +46,12 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, FriendRequest>
-    implements FriendRequestService {
+public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, FriendRequest> implements FriendRequestService {
 
     private final UserService userService;
     private final FriendService friendService;
     private final GroupService groupService;
+    private final GroupMemberService groupMemberService;
     private final UserBlacklistService userBlacklistService;
     private final IMClient imClient;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -75,29 +71,32 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         wrapper.eq(FriendRequest::getSendId, session.getUserId());
         wrapper.orderByDesc(FriendRequest::getId);
         requests.addAll(this.list(wrapper));
-        return requests.stream().map(o -> BeanUtils.copyProperties(o, FriendRequestVO.class))
-            .collect(Collectors.toList());
+        return requests.stream().map(o -> BeanUtils.copyProperties(o, FriendRequestVO.class)).collect(Collectors.toList());
     }
 
     @Override
     public FriendRequestVO apply(FriendRequestApplyDTO dto) {
         UserSession session = SessionContext.getSession();
+        Long userId = session.getUserId();
         // 检查每日添加好友数量限制，防止脚本恶意添加
-        checkDailyApplyLimit(session.getUserId());
-        if (session.getUserId().equals(dto.getFriendId())) {
+        checkDailyApplyLimit(userId);
+        Long friendId = dto.getFriendId();
+        if (userId.equals(friendId)) {
             throw new GlobalException("不允许添加自己为好友");
         }
-        if (friendService.isFriend(session.getUserId(), dto.getFriendId())) {
+        if (friendService.isFriend(userId, friendId)) {
             throw new GlobalException("对方已是您的好友");
         }
-        if (userBlacklistService.isInBlacklist(dto.getFriendId(), session.getUserId())) {
+        if (userBlacklistService.isInBlacklist(friendId, userId)) {
             throw new GlobalException("对方已将您拉入黑名单");
         }
-        groupService.checkAllowAddFriendFromGroup(session.getUserId(), dto.getFriendId());
+        if (!groupMemberService.isAllowAdd(userId, friendId)) {
+            throw new GlobalException("群内禁止添加好友");
+        }
         // 先查询，防止多次重复申请
         LambdaQueryWrapper<FriendRequest> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(FriendRequest::getSendId, session.getUserId());
-        wrapper.eq(FriendRequest::getRecvId, dto.getFriendId());
+        wrapper.eq(FriendRequest::getSendId, userId);
+        wrapper.eq(FriendRequest::getRecvId, friendId);
         wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
         FriendRequest request = this.getOne(wrapper);
         if (!Objects.isNull(request)) {
@@ -106,30 +105,31 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         // 对方申请列表数量上限校验
         wrapper = Wrappers.lambdaQuery();
         wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
-        wrapper.eq(FriendRequest::getRecvId, dto.getFriendId());
+        wrapper.eq(FriendRequest::getRecvId, friendId);
         if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
             throw new GlobalException("对方的好友申请列表已满");
         }
         // 自己的申请列表上限校验
         wrapper = Wrappers.lambdaQuery();
         wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
-        wrapper.eq(FriendRequest::getSendId, session.getUserId());
+        wrapper.eq(FriendRequest::getSendId, userId);
         if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
             throw new GlobalException("您的好友申请列表已满");
         }
         // 新请求
-        User sender = userService.getById(session.getUserId());
-
-
-
-
-
-        User receiver = userService.getById(dto.getFriendId());
+        User sender = userService.lambdaQuery()
+                .select(User::getId, User::getNickName, User::getHeadImageThumb)
+                .eq(User::getId, userId)
+                .one();
+        User receiver = userService.lambdaQuery()
+                .select(User::getId, User::getNickName, User::getHeadImageThumb, User::getIsManualApprove)
+                .eq(User::getId, friendId)
+                .one();
         request = new FriendRequest();
-        request.setSendId(session.getUserId());
+        request.setSendId(userId);
         request.setSendNickName(sender.getNickName());
         request.setSendHeadImage(sender.getHeadImageThumb());
-        request.setRecvId(dto.getFriendId());
+        request.setRecvId(friendId);
         request.setRecvNickName(receiver.getNickName());
         request.setRecvHeadImage(receiver.getHeadImageThumb());
         request.setRemark(dto.getRemark());
@@ -138,7 +138,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
         if (!receiver.getIsManualApprove()) {
             // 自动通过好友
-            friendService.addFriend(dto.getFriendId(), session.getUserId(), dto.getRemark());
+            friendService.addFriend(friendId, userId, dto.getRemark());
             // 推送同意消息
             vo.setStatus(FriendRequestStatus.APPROVED.getCode());
         } else {
@@ -146,10 +146,10 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             this.saveOrUpdate(request);
             vo.setId(request.getId());
             // 推送添加请求
-            sendRequestMessage(dto.getFriendId(), MessageType.FRIEND_REQ_APPLY, vo, false, true);
+            sendRequestMessage(session.getCompanyId(), friendId, MessageType.FRIEND_REQ_APPLY, vo, false, true);
         }
         // 增加每日申请好友计数
-        incrementDailyApplyCount(session.getUserId());
+        incrementDailyApplyCount(userId);
         return vo;
     }
 
@@ -170,7 +170,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(request.getSendId(), MessageType.FRIEND_REQ_APPROVE, vo, true, false);
+        sendRequestMessage(session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_APPROVE, vo, true, false);
     }
 
     @Override
@@ -188,7 +188,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(request.getSendId(), MessageType.FRIEND_REQ_REJECT, vo, true, false);
+        sendRequestMessage(session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_REJECT, vo, true, false);
     }
 
     @Override
@@ -206,12 +206,13 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(request.getRecvId(), MessageType.FRIEND_REQ_RECALL, vo, true, true);
+        sendRequestMessage(session.getCompanyId(), request.getRecvId(), MessageType.FRIEND_REQ_RECALL, vo, true, true);
     }
 
-    void sendRequestMessage(Long fid, MessageType type, FriendRequestVO vo, Boolean sendToSelf, Boolean sendResult) {
+    void sendRequestMessage(Long companyId, Long fid, MessageType type, FriendRequestVO vo, Boolean sendToSelf, Boolean sendResult) {
         UserSession session = SessionContext.getSession();
         PrivateMessageVO msgInfo = new PrivateMessageVO();
+        msgInfo.setCompanyId(companyId);
         msgInfo.setSendId(session.getUserId());
         msgInfo.setRecvId(fid);
         msgInfo.setSendTime(vo.getApplyTime());
