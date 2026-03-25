@@ -72,8 +72,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
         userStateUtils.inRrivateRtc(session.getUserId(), uid);
         userStateUtils.inRrivateRtc(uid, session.getUserId());
         // 向对方所有终端发起呼叫
-        MessageType messageType =
-            mode.equals(WebrtcMode.VIDEO.getValue()) ? MessageType.RTC_SETUP_VIDEO : MessageType.RTC_SETUP_VOICE;
+        MessageType messageType = mode.equals(WebrtcMode.VIDEO.getValue()) ? MessageType.RTC_SETUP_VIDEO : MessageType.RTC_SETUP_VOICE;
         sendRtcMessage1(messageType, uid);
         // 对离线用户进行离线呼叫
         rtcPrivateNotifyService.setup(webrtcSession);

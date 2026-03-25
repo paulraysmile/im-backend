@@ -15,7 +15,6 @@ import java.util.Date;
  * @since 2022-10-31
  */
 @Data
-
 @TableName("im_group_message")
 public class GroupMessage {
 

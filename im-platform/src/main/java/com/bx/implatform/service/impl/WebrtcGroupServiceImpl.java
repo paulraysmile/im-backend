@@ -651,6 +651,7 @@ public class WebrtcGroupServiceImpl implements WebrtcGroupService {
         WebrtcGroupInfoVO rtcInfo = info(groupId);
         // 保存消息
         GroupMessage msg = new GroupMessage();
+        msg.setCompanyId(userSession.getCompanyId());
         msg.setGroupId(groupId);
         msg.setContent(JSON.toJSONString(rtcInfo, SerializerFeature.DisableCircularReferenceDetect));
         msg.setSendId(userSession.getUserId());
