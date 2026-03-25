@@ -11,6 +11,7 @@ import com.bx.imcommon.model.IMUserInfo;
 import com.bx.implatform.contant.Constant;
 import com.bx.implatform.contant.RedisKey;
 import com.bx.implatform.dto.FriendRequestApplyDTO;
+import com.bx.implatform.entity.Friend;
 import com.bx.implatform.entity.FriendRequest;
 import com.bx.implatform.entity.User;
 import com.bx.implatform.enums.FriendRequestStatus;
@@ -84,13 +85,22 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         if (userId.equals(friendId)) {
             throw new GlobalException("不允许添加自己为好友");
         }
-        if (friendService.isFriend(userId, friendId)) {
+        //if (friendService.isFriend(userId, friendId)) {
+        //    throw new GlobalException("对方已是您的好友");
+        //}
+        Friend friend = friendService.lambdaQuery()
+                .select(Friend::getId, Friend::getDeleted)
+                .eq(Friend::getUserId, userId)
+                .eq(Friend::getFriendId, friendId)
+                .last("limit 1")
+                .one();
+        if (friend != null && !friend.getDeleted()) {
             throw new GlobalException("对方已是您的好友");
         }
         if (userBlacklistService.isInBlacklist(friendId, userId)) {
             throw new GlobalException("对方已将您拉入黑名单");
         }
-        if (!groupMemberService.isAllowAdd(userId, friendId)) {
+        if (friend == null && !groupMemberService.isAllowAdd(userId, friendId)) {
             throw new GlobalException("群内禁止添加好友");
         }
         // 先查询，防止多次重复申请
@@ -146,7 +156,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             this.saveOrUpdate(request);
             vo.setId(request.getId());
             // 推送添加请求
-            sendRequestMessage(session.getCompanyId(), friendId, MessageType.FRIEND_REQ_APPLY, vo, false, true);
+            sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), friendId, MessageType.FRIEND_REQ_APPLY, vo, false, true);
         }
         // 增加每日申请好友计数
         incrementDailyApplyCount(userId);
@@ -170,7 +180,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_APPROVE, vo, true, false);
+        sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_APPROVE, vo, true, false);
     }
 
     @Override
@@ -188,7 +198,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_REJECT, vo, true, false);
+        sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_REJECT, vo, true, false);
     }
 
     @Override
@@ -202,24 +212,25 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             throw new GlobalException("该请求已处理，无法撤回");
         }
         // 更新状态
-        request.setStatus(FriendRequestStatus.RECALL.getCode());
-        this.updateById(request);
+        this.lambdaUpdate()
+                .eq(FriendRequest::getId, id)
+                .set(FriendRequest::getStatus, FriendRequestStatus.RECALL.getCode())
+                .update();
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(session.getCompanyId(), request.getRecvId(), MessageType.FRIEND_REQ_RECALL, vo, true, true);
+        sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), request.getRecvId(), MessageType.FRIEND_REQ_RECALL, vo, true, true);
     }
 
-    void sendRequestMessage(Long companyId, Long fid, MessageType type, FriendRequestVO vo, Boolean sendToSelf, Boolean sendResult) {
-        UserSession session = SessionContext.getSession();
+    void sendRequestMessage(Long userId, Integer terminal, Long companyId, Long fid, MessageType type, FriendRequestVO vo, Boolean sendToSelf, Boolean sendResult) {
         PrivateMessageVO msgInfo = new PrivateMessageVO();
         msgInfo.setCompanyId(companyId);
-        msgInfo.setSendId(session.getUserId());
+        msgInfo.setSendId(userId);
         msgInfo.setRecvId(fid);
         msgInfo.setSendTime(vo.getApplyTime());
         msgInfo.setType(type.code());
         msgInfo.setContent(JSON.toJSONString(vo));
         IMPrivateMessage<PrivateMessageVO> sendMessage = new IMPrivateMessage<>();
-        sendMessage.setSender(new IMUserInfo(session.getUserId(), session.getTerminal()));
+        sendMessage.setSender(new IMUserInfo(userId, terminal));
         sendMessage.setRecvId(fid);
         sendMessage.setData(msgInfo);
         sendMessage.setSendToSelf(sendToSelf);

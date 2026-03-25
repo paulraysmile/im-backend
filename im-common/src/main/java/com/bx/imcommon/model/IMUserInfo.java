@@ -4,11 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * @author: Blue
- * @date: 2023-09-24 09:23:11
- * @version: 1.0
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

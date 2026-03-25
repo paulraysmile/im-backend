@@ -115,8 +115,7 @@ public class IMSender {
                     continue;
                 }
                 // 获取终端连接的channelId
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(),
-                    terminal.toString());
+                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, message.getSender().getId().toString(), terminal.toString());
                 Integer serverId = (Integer)redisMQTemplate.opsForValue().get(key);
                 // 如果终端在线，将数据存储至redis，等待拉取推送
                 if (serverId != null) {

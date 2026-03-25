@@ -41,13 +41,12 @@ public class UserDeviceTokenServiceImpl extends ServiceImpl<UserDeviceTokenMappe
     public void reportDeviceToken(DeviceTokenDTO dto) {
         Long userId = SessionContext.getSession().getUserId();
         boolean isVoip = TYPE_VOIP.equalsIgnoreCase(StrUtil.nullToEmpty(dto.getType()).trim());
-
         LambdaQueryWrapper<UserDeviceToken> query = Wrappers.lambdaQuery();
         query.eq(UserDeviceToken::getUserId, userId);
-        UserDeviceToken existing = getOne(query);
+        UserDeviceToken userDeviceToken = getOne(query);
 
         LocalDateTime now = LocalDateTime.now();
-        if (existing != null) {
+        if (userDeviceToken != null) {
             LambdaUpdateWrapper<UserDeviceToken> update = Wrappers.lambdaUpdate();
             update.eq(UserDeviceToken::getUserId, userId);
             update.set(UserDeviceToken::getReportTime, now);
@@ -63,7 +62,6 @@ public class UserDeviceTokenServiceImpl extends ServiceImpl<UserDeviceTokenMappe
                 update.set(UserDeviceToken::getApnsToken, trimLen(dto.getToken(), 128));
             }
             update(update);
-            log.debug("更新用户设备Token, userId:{}, type:{}", userId, isVoip ? "voip" : "apns");
         } else {
             UserDeviceToken entity = new UserDeviceToken();
             entity.setUserId(userId);

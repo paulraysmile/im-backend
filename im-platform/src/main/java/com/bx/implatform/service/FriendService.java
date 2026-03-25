@@ -13,13 +13,13 @@ import java.util.Map;
 public interface FriendService extends IService<Friend> {
 
     /**
-     * 判断用户2是否用户1的好友
+     * 判断是否为好友
      *
-     * @param userId1 用户1的id
-     * @param userId2 用户2的id
+     * @param userId 用户id
+     * @param friendId 好友id
      * @return true/false
      */
-    Boolean isFriend(Long userId1, Long userId2);
+    Boolean isFriend(Long userId, Long friendId);
 
     /**
      * 查询用户的所有好友,包括已删除的

@@ -370,6 +370,7 @@ public class WebrtcPrivateServiceImpl implements WebrtcPrivateService {
             userStateUtils.setFree(userId);
             // 模拟接听方向发起方推送通话失败信令
             PrivateMessageVO messageInfo = new PrivateMessageVO();
+            messageInfo.setCompanyId(companyId);
             messageInfo.setType(MessageType.RTC_FAILED.code());
             messageInfo.setRecvId(userId);
             messageInfo.setSendId(uid);

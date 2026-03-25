@@ -92,7 +92,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
             throw new GlobalException("不允许添加自己为好友");
         }
         // 互相绑定好友关系
-        FriendServiceImpl proxy = (FriendServiceImpl)AopContext.currentProxy();
+        FriendServiceImpl proxy = (FriendServiceImpl) AopContext.currentProxy();
         proxy.bindFriend(userId, friendId);
         proxy.bindFriend(friendId, userId);
         // 推送添加好友提示
@@ -109,7 +109,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     public void delFriend(Long friendId) {
         Long userId = SessionContext.getSession().getUserId();
         // 互相解除好友关系，走代理清理缓存
-        FriendServiceImpl proxy = (FriendServiceImpl)AopContext.currentProxy();
+        FriendServiceImpl proxy = (FriendServiceImpl) AopContext.currentProxy();
         proxy.unbindFriend(userId, friendId);
         proxy.unbindFriend(friendId, userId);
         // 推送解除好友提示
@@ -117,12 +117,12 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         log.info("删除好友，用户id:{},好友id:{}", userId, friendId);
     }
 
-    @Cacheable(key = "#userId1+':'+#userId2")
+    @Cacheable(key = "#userId+':'+#friendId")
     @Override
-    public Boolean isFriend(Long userId1, Long userId2) {
+    public Boolean isFriend(Long userId, Long friendId) {
         LambdaQueryWrapper<Friend> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(Friend::getUserId, userId1);
-        wrapper.eq(Friend::getFriendId, userId2);
+        wrapper.eq(Friend::getUserId, userId);
+        wrapper.eq(Friend::getFriendId, friendId);
         wrapper.eq(Friend::getDeleted, false);
         return this.exists(wrapper);
     }
@@ -228,6 +228,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         // 广播给所有好友
         for (Long fid : fids) {
             PrivateMessageVO msgInfo = new PrivateMessageVO();
+            msgInfo.setCompanyId();
             msgInfo.setSendId(userId);
             msgInfo.setRecvId(fid);
             msgInfo.setSendTime(new Date());

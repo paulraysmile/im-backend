@@ -34,10 +34,11 @@ public class ApnsPushService {
     private final ApnsProperties apnsProps;
 
     private volatile ApnsClient apnsClient;
+
     private final ExecutorService executor =
         new ThreadPoolExecutor(2, 4, 60L, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(1000), Executors.defaultThreadFactory(),
-            new ThreadPoolExecutor.CallerRunsPolicy());
+            new ThreadPoolExecutor.AbortPolicy());
 
     @PostConstruct
     public void init() {

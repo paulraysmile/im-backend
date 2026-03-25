@@ -423,7 +423,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public UserVO findUserById(Long id) {
         UserSession session = SessionContext.getSession();
-        User user = this.getById(id);
+        User user = this.lambdaQuery()
+                .eq(User::getId, id)
+                .eq(User::getCompanyId, session.getCompanyId())
+                .one();
         if (Objects.isNull(user)) {
             log.warn("用户不存在,id:{}", id);
             throw new GlobalException("用户不存在");
@@ -444,11 +447,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public List<UserVO> findUserByUsername(String username) {
+    public List<UserVO> findUserByUsername(String username, Long companyId) {
         LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(User::getCompanyId, companyId);
+        wrapper.eq(User::getUserName, username);
         wrapper.eq(User::getIsBanned, false);
         wrapper.eq(User::getStatus, UserStatus.NORMAL.getValue());
-        wrapper.eq(User::getUserName, username);
         List<User> users = this.list(wrapper);
         return convert(users);
     }
@@ -470,7 +474,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             }
         } else {
             // 查询用户名
-            return findUserByUsername(name);
+            return findUserByUsername(name, companyId);
         }
         return Lists.newArrayList();
     }
@@ -479,10 +483,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public void reportCid(String cid) {
         UserSession session = SessionContext.getSession();
+        Long userId = session.getUserId();
         // 清理该设备以前登录过的cid
         LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(User::getCid, cid);
-        wrapper.ne(User::getId, session.getUserId());
+        wrapper.ne(User::getId, userId);
         List<User> users = this.list(wrapper);
         users.forEach(user -> {
             // 清理redis中的cid
@@ -495,14 +500,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             this.updateById(user);
         });
         // 保存当前用户的cid
-        User user = this.getById(session.getUserId());
-        user.setCid(cid);
-        this.updateById(user);
+        this.lambdaUpdate()
+                .eq(User::getId, userId)
+                .set(User::getCid, cid)
+                .update();
+
+
         // 缓存cid到redis
-        String key = StrUtil.join(":", RedisKey.IM_USER_CID, user.getId());
+        String key = StrUtil.join(":", RedisKey.IM_USER_CID, userId);
         redisTemplate.opsForValue().set(key, cid, notifyProps.getActiveDays(), TimeUnit.DAYS);
         // 清空通知会话信息
-        String key2 = StrUtil.join(":", RedisKey.IM_NOTIFY_OFFLINE_SESSION, user.getId());
+        String key2 = StrUtil.join(":", RedisKey.IM_NOTIFY_OFFLINE_SESSION, userId);
         redisTemplate.delete(key2);
     }
 

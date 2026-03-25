@@ -144,9 +144,10 @@ public interface UserService extends IService<User> {
      * 根据用户名查询用户
      *
      * @param username 用户名
+     * @param companyId 公司id
      * @return 用户列表
      */
-    List<UserVO> findUserByUsername(String username);
+    List<UserVO> findUserByUsername(String username, Long companyId);
 
     /**
      * 查询用户，最多返回20条数据
