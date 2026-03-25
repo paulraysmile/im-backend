@@ -8,11 +8,6 @@ import lombok.Data;
 
 import java.util.List;
 
-/**
- * @author Blue
- * @version 1.0
- * @date 2025-02-23
- */
 @Data
 @Schema(description = "群聊管理员设置")
 public class GroupManagerDTO {

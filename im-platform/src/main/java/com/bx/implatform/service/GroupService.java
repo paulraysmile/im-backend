@@ -44,6 +44,7 @@ public interface GroupService extends IService<Group> {
 
     /**
      * 将用户移出群聊
+     *
      * @param dto dto
      */
     void removeGroupMembers(GroupMemberRemoveDTO dto);
@@ -89,9 +90,10 @@ public interface GroupService extends IService<Group> {
      * 根据id查找群聊，并进行缓存
      *
      * @param groupId 群聊id
+     * @param companyId 公司id
      * @return 群聊实体
      */
-    Group getAndCheckById(Long groupId);
+    Group getAndCheckById(Long groupId, Long companyId);
 
     /**
      * 根据id查找群聊
@@ -108,10 +110,11 @@ public interface GroupService extends IService<Group> {
      * @param version 版本号
      * @return List<GroupMemberVO>
      **/
-    List<GroupMemberVO> findGroupMembers(Long groupId,Long version);
+    List<GroupMemberVO> findGroupMembers(Long groupId, Long version);
 
     /**
      * 查询在线成员id
+     *
      * @param groupId 群聊id
      * @return
      */
@@ -119,57 +122,66 @@ public interface GroupService extends IService<Group> {
 
     /**
      * 设置群禁言状态
+     *
      * @param dto dto
      */
-    void  setGroupMuted(GroupMutedDTO dto);
+    void setGroupMuted(GroupMutedDTO dto);
 
 
     /**
      * 设置成员禁言状态
+     *
      * @param dto dto
      */
-    void  setMemberMuted(GroupMemberMutedDTO dto);
+    void setMemberMuted(GroupMemberMutedDTO dto);
 
 
     /**
      * 设置群置顶消息
-     * @param groupId 群id
+     *
+     * @param groupId   群id
      * @param messageId 消息id
      */
-    void setTopMessage(Long groupId,Long messageId);
+    void setTopMessage(Long groupId, Long messageId);
 
     /**
      * 移除群置顶消息,对所有群成员生效
+     *
      * @param groupId 群id
      */
     void removeTopMessage(Long groupId);
 
     /**
      * 隐藏群置顶消息，仅对自己生效
+     *
      * @param groupId 群id
      */
     void hideTopMessage(Long groupId);
 
     /**
      * 新增管理员
+     *
      * @param dto dto
      */
     void addManager(GroupManagerDTO dto);
 
     /**
      * 移除管理员
+     *
      * @param dto dto
      */
     void removeManager(GroupManagerDTO dto);
 
     /**
      * 开启/关闭免打扰
+     *
      * @param dto
      */
     void setDnd(GroupDndDTO dto);
 
     /**
      * 初始化免打扰缓存
+     *
      * @param userId
      */
     void initDndCache(Long userId);
@@ -177,32 +189,37 @@ public interface GroupService extends IService<Group> {
 
     /**
      * 是否开启消息免打扰
-     * @param userId 用户id
+     *
+     * @param userId  用户id
      * @param groupId 群id
      */
-    Boolean isDnd(Long userId,Long groupId);
+    Boolean isDnd(Long userId, Long groupId);
 
 
     /**
      * 开启/关闭置顶
+     *
      * @param dto
      */
     void setTop(GroupTopDTO dto);
 
     /**
      * 允许/禁止普通成员邀请好友
+     *
      * @param dto
      */
     void setAllowInvite(GroupAllowInviteDTO dto);
 
     /**
      * 允许/禁止普通成员分享名片
+     *
      * @param dto
      */
     void setAllowShareCard(GroupAllowShareCardDTO dto);
 
     /**
      * 允许/禁止普通成员群内互相加好友
+     *
      * @param dto
      */
     void setAllowAddOther(GroupAllowAddOtherDTO dto);

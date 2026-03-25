@@ -32,9 +32,10 @@ public interface FriendService extends IService<Friend> {
      * 查询用户的所有好友
      *
      * @param friendIds 好友id
+     * @param companyId 公司id
      * @return 好友列表
      */
-    List<Friend> findByFriendIds(List<Long> friendIds);
+    List<Friend> findByFriendIds(List<Long> friendIds, Long companyId);
 
     /**
      * 查询当前用户的所有好友
@@ -46,11 +47,12 @@ public interface FriendService extends IService<Friend> {
     /**
      * 添加好友，互相建立好友关系
      *
+     * @param companyId   公司id
      * @param userId      用户id
      * @param friendId    好友的用户id
      * @param applyRemark 申请备注
      */
-    void addFriend(Long userId, Long friendId, String applyRemark);
+    void addFriend(Long companyId, Long userId, Long friendId, String applyRemark);
 
     /**
      * 删除好友，双方都会解除好友关系
@@ -70,11 +72,12 @@ public interface FriendService extends IService<Friend> {
     /**
      * 绑定好友关系
      *
-     * @param userId   好友的id
-     * @param friendId 好友的用户id
+     * @param companyId 公司id
+     * @param userId    好友的id
+     * @param friendId  好友的用户id
      * @return 好友信息
      */
-    void bindFriend(Long userId, Long friendId);
+    void bindFriend(Long companyId, Long userId, Long friendId);
 
     /**
      * 修改好友备注

@@ -3,10 +3,6 @@ package com.bx.implatform.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/**
- * @author Blue
- * @version 1.0
- */
 @Data
 @Schema(description = "业务tokenVO")
 public class BizTokenVO {
@@ -19,4 +15,5 @@ public class BizTokenVO {
 
     @Schema(description = "过期时间(时间戳)")
     private Long expiredIn;
+
 }

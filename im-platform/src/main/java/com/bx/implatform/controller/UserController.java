@@ -1,5 +1,6 @@
 package com.bx.implatform.controller;
 
+import cn.hutool.core.util.StrUtil;
 import com.bx.implatform.annotation.RepeatSubmit;
 import com.bx.implatform.dto.BindEmailDTO;
 import com.bx.implatform.dto.DeviceTokenDTO;
@@ -53,7 +54,6 @@ public class UserController {
         return ResultUtils.success(userService.search(name));
     }
 
-
     @PostMapping("/reportCid")
     @Operation(summary = "上报用户cid", description = "上报用户cid")
     public Result reportCid(@RequestParam String cid){
@@ -65,18 +65,13 @@ public class UserController {
     @PostMapping("/deviceToken")
     @Operation(summary = "上报用户设备Token", description = "上报用户设备推送Token，落库至 im_user_device_token")
     public Result reportDeviceToken(@Valid @RequestBody DeviceTokenDTO dto) {
-        userDeviceTokenService.reportDeviceToken(dto);
-        // iOS 上报的是 APNs token，不作为个推 cid；仅 Android/其他 上报 cid 时调用 reportCid
-        if (!isIosPlatform(dto.getPlatform())) {
+        if (StrUtil.equalsIgnoreCase("ios", dto.getPlatform())) {
+            userDeviceTokenService.reportDeviceToken(dto);
+        } else {
             userService.reportCid(dto.getToken());
         }
         return ResultUtils.success();
     }
-
-    private static boolean isIosPlatform(String platform) {
-        return platform != null && "ios".equalsIgnoreCase(platform.trim());
-    }
-
 
     @DeleteMapping("/removeCid")
     @Operation(summary = "清理用户cid", description = "清理用户cid")
@@ -99,7 +94,6 @@ public class UserController {
         return ResultUtils.success();
     }
 
-
     @RepeatSubmit
     @PutMapping("/bindPhone")
     @Operation(summary = "绑定手机", description = "绑定手机")
@@ -115,7 +109,6 @@ public class UserController {
         userService.bindEmail(dto);
         return ResultUtils.success();
     }
-
 
 }
 

@@ -6,6 +6,7 @@ import lombok.Data;
 
 /**
  * 手机绑定
+ *
  * @author Blue
  * @version 1.0
  */

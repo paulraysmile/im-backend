@@ -1,7 +1,6 @@
 package com.bx.implatform.listener;
 
 import cn.hutool.core.collection.CollUtil;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.bx.imclient.annotation.IMListener;
 import com.bx.imclient.listener.MessageListener;
 import com.bx.imcommon.enums.IMListenerType;
@@ -14,14 +13,17 @@ import com.bx.implatform.enums.MessageType;
 import com.bx.implatform.service.OfflineNotifyService;
 import com.bx.implatform.service.PrivateMessageCompanyService;
 import com.bx.implatform.vo.PrivateMessageVO;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @IMListener(type = IMListenerType.PRIVATE_MESSAGE)
@@ -44,7 +46,7 @@ public class PrivateMessageListener implements MessageListener<PrivateMessageVO>
     }
 
     private void updateMessageStatus(List<IMSendResult<PrivateMessageVO>> results) {
-        Set<Long> messageIds = new HashSet<>();
+        Map<Long, Set<Long>> messageIdMap = new HashMap<>();
         for (IMSendResult<PrivateMessageVO> result : results) {
             PrivateMessageVO messageInfo = result.getData();
             MessageType messageType = MessageType.fromCode(messageInfo.getType());
@@ -53,7 +55,7 @@ public class PrivateMessageListener implements MessageListener<PrivateMessageVO>
                 // 只有普通消息和操作交互类消息有入库
                 if (messageType.isNormal() || messageType.isAct() || messageType.isTip() || messageType.equals(MessageType.RECALL)) {
                     if(result.getReceiver().getId().equals(messageInfo.getRecvId())){
-                        messageIds.add(messageInfo.getId());
+                        messageIdMap.computeIfAbsent(messageInfo.getCompanyId(), k -> new HashSet<>()).add(messageInfo.getId());
                         log.debug("消息送达，消息id:{}，发送者:{},接收者:{},终端:{}",
                                 messageInfo.getId(), result.getSender().getId(), result.getReceiver().getId(), result.getReceiver().getTerminal());
                     }
@@ -61,13 +63,16 @@ public class PrivateMessageListener implements MessageListener<PrivateMessageVO>
             }
         }
         // 对发送成功的消息修改状态
-        if (CollUtil.isNotEmpty(messageIds)) {
-            UpdateWrapper<PrivateMessage> updateWrapper = new UpdateWrapper<>();
-            updateWrapper.lambda()
-                    .in(PrivateMessage::getId, messageIds)
+        if (CollUtil.isNotEmpty(messageIdMap)) {
+            Iterator<Entry<Long, Set<Long>>> iterator = messageIdMap.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Entry<Long, Set<Long>> entry = iterator.next();
+                privateMessageService.lambdaUpdate()
+                    .eq(PrivateMessage::getCompanyId, entry.getKey())
+                    .in(PrivateMessage::getId, entry.getValue())
                     .eq(PrivateMessage::getStatus, MessageStatus.PENDING.code())
                     .set(PrivateMessage::getStatus, MessageStatus.DELIVERED.code());
-            privateMessageService.update(updateWrapper);
+            }
         }
     }
 
@@ -76,8 +81,7 @@ public class PrivateMessageListener implements MessageListener<PrivateMessageVO>
         List<IMSendResult<PrivateMessageVO>> notifyResults = new LinkedList<>();
         for (IMSendResult<PrivateMessageVO> result : results) {
             MessageType messageType = MessageType.fromCode(result.getData().getType());
-            if (result.getCode().equals(IMSendCode.NOT_ONLINE.code()) && result.getReceiver().getTerminal()
-                .equals(IMTerminalType.APP.code())) {
+            if (result.getCode().equals(IMSendCode.NOT_ONLINE.code()) && result.getReceiver().getTerminal().equals(IMTerminalType.APP.code())) {
                 if (messageType.isNormal()) {
                     // 普通消息批量处理
                     notifyResults.add(result);

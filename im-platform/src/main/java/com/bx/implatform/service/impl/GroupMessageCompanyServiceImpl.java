@@ -65,7 +65,7 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         UserSession session = SessionContext.getSession();
         Long userId = session.getUserId();
         Long companyId = session.getCompanyId();
-        Group group = groupService.getAndCheckById(dto.getGroupId());
+        Group group = groupService.getAndCheckById(dto.getGroupId(), companyId);
         GroupMember member = groupMemberService.findByGroupAndUserId(dto.getGroupId(), userId,
                 GroupMember::getId, GroupMember::getUserNickName, GroupMember::getRemarkNickName,
                 GroupMember::getIsManager, GroupMember::getIsMuted, GroupMember::getQuit);
@@ -128,7 +128,7 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         sendMessage.setData(msgInfo);
         imClient.sendGroupMessage(sendMessage);
         String ip = JakartaServletUtil.getClientIP(request);
-        log.info("发送群聊消息，ip:{},发送id:{},群聊id:{},内容:{}", ip, userId, dto.getGroupId(), dto.getContent());
+        log.debug("发送群聊消息，ip:{},发送id:{},群聊id:{},内容:{}", ip, userId, dto.getGroupId(), dto.getContent());
         return msgInfo;
     }
 
@@ -166,10 +166,14 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
             throw new GlobalException("消息已发送超过10分钟，无法撤回");
         }
         // 修改数据库
-        msg.setStatus(MessageStatus.RECALL.code());
-        this.updateById(msg);
+        this.lambdaUpdate()
+            .eq(GroupMessage::getId, id)
+            .eq(GroupMessage::getCompanyId, companyId)
+            .set(GroupMessage::getStatus, MessageStatus.RECALL.code())
+            .update();
         // 生成一条撤回消息
         GroupMessage recallMsg = new GroupMessage();
+        recallMsg.setCompanyId(companyId);
         recallMsg.setStatus(MessageStatus.PENDING.code());
         recallMsg.setType(MessageType.RECALL.code());
         recallMsg.setGroupId(groupId);
@@ -186,7 +190,7 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         sendMessage.setRecvIds(userIds);
         sendMessage.setData(msgInfo);
         imClient.sendGroupMessage(sendMessage);
-        log.info("撤回群聊消息，发送id:{},群聊id:{}", userId, groupId);
+        log.debug("撤回群聊消息，发送id:{},群聊id:{}", userId, groupId);
         return msgInfo;
     }
 
@@ -300,9 +304,10 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         // 取出最后的消息id
         LambdaQueryWrapper<GroupMessage> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(GroupMessage::getGroupId, groupId)
-                .select(GroupMessage::getId)
-                .eq(GroupMessage::getCompanyId, companyId)
-                .orderByDesc(GroupMessage::getId).last("limit 1");
+            .select(GroupMessage::getId)
+            .eq(GroupMessage::getCompanyId, companyId)
+            .orderByDesc(GroupMessage::getId)
+            .last("limit 1");
         GroupMessage message = this.getOne(wrapper);
         if (Objects.isNull(message)) {
             return;
@@ -327,6 +332,7 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         redisTemplate.opsForHash().put(key, userId.toString(), message.getId());
         // 推送消息回执，刷新已读人数显示
         wrapper = Wrappers.lambdaQuery();
+        wrapper.select(GroupMessage::getId, GroupMessage::getSendId);
         wrapper.gt(!Objects.isNull(maxReadedId), GroupMessage::getId, maxReadedId);
         wrapper.le(!Objects.isNull(maxReadedId), GroupMessage::getId, message.getId());
         wrapper.eq(GroupMessage::getCompanyId, companyId);
@@ -338,17 +344,20 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
             List<Long> userIds = groupMemberService.findUserIdsByGroupId(groupId);
             Map<Object, Object> maxIdMap = redisTemplate.opsForHash().entries(key);
             for (GroupMessage receiptMessage : receiptMessages) {
+                msgInfo = new GroupMessageVO();
                 int readedCount = getReadedUserIds(maxIdMap, receiptMessage.getId(), receiptMessage.getSendId()).size();
                 // 如果所有人都已读，记录回执消息完成标记
                 if (readedCount >= userIds.size() - 1) {
-                    receiptMessage.setReceiptOk(true);
-                    this.updateById(receiptMessage);
+                    msgInfo.setReceiptOk(true);
+                    this.lambdaUpdate()
+                        .eq(GroupMessage::getId, receiptMessage.getId())
+                        .eq(GroupMessage::getCompanyId, companyId)
+                        .set(GroupMessage::getReceiptOk, true)
+                        .update();
                 }
-                msgInfo = new GroupMessageVO();
                 msgInfo.setId(receiptMessage.getId());
                 msgInfo.setGroupId(groupId);
                 msgInfo.setReadedCount(readedCount);
-                msgInfo.setReceiptOk(receiptMessage.getReceiptOk());
                 msgInfo.setType(MessageType.RECEIPT.code());
                 sendMessage = new IMGroupMessage<>();
                 sendMessage.setSender(new IMUserInfo(userId, session.getTerminal()));
@@ -413,7 +422,7 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         Long userId = session.getUserId();
         Long companyId = session.getCompanyId();
         Long groupId = dto.getGroupId();
-        Group group = groupService.getAndCheckById(groupId);
+        Group group = groupService.getAndCheckById(groupId, companyId);
         GroupMember member = groupMemberService.findByGroupAndUserId(groupId, session.getUserId(),
                 GroupMember::getId, GroupMember::getUserNickName, GroupMember::getRemarkNickName, GroupMember::getQuit);
         if (Objects.isNull(member) || Boolean.TRUE.equals(member.getQuit())) {
@@ -452,7 +461,7 @@ public class GroupMessageCompanyServiceImpl extends ServiceImpl<GroupMessageMapp
         Long userId = session.getUserId();
         Long companyId = session.getCompanyId();
         Long groupId = dto.getGroupId();
-        Group group = groupService.getAndCheckById(groupId);
+        Group group = groupService.getAndCheckById(groupId, companyId);
         GroupMember member = groupMemberService.findByGroupAndUserId(groupId, userId,
                 GroupMember::getId, GroupMember::getUserNickName, GroupMember::getRemarkNickName, GroupMember::getQuit);
         if (Objects.isNull(member) || Boolean.TRUE.equals(member.getQuit())) {

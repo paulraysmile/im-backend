@@ -51,7 +51,6 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
 
     private final UserService userService;
     private final FriendService friendService;
-    private final GroupService groupService;
     private final GroupMemberService groupMemberService;
     private final UserBlacklistService userBlacklistService;
     private final IMClient imClient;
@@ -104,16 +103,16 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             throw new GlobalException("群内禁止添加好友");
         }
         // 先查询，防止多次重复申请
-        LambdaQueryWrapper<FriendRequest> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(FriendRequest::getSendId, userId);
-        wrapper.eq(FriendRequest::getRecvId, friendId);
-        wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
-        FriendRequest request = this.getOne(wrapper);
-        if (!Objects.isNull(request)) {
+        boolean exists = this.lambdaQuery()
+            .eq(FriendRequest::getSendId, userId)
+            .eq(FriendRequest::getRecvId, friendId)
+            .eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode())
+            .exists();
+        if (exists) {
             throw new GlobalException("您已在对方的好友申请列表中,无需重复申请");
         }
         // 对方申请列表数量上限校验
-        wrapper = Wrappers.lambdaQuery();
+        LambdaQueryWrapper<FriendRequest> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
         wrapper.eq(FriendRequest::getRecvId, friendId);
         if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
@@ -127,15 +126,25 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             throw new GlobalException("您的好友申请列表已满");
         }
         // 新请求
-        User sender = userService.lambdaQuery()
-                .select(User::getId, User::getNickName, User::getHeadImageThumb)
-                .eq(User::getId, userId)
-                .one();
-        User receiver = userService.lambdaQuery()
-                .select(User::getId, User::getNickName, User::getHeadImageThumb, User::getIsManualApprove)
-                .eq(User::getId, friendId)
-                .one();
-        request = new FriendRequest();
+        List<User> userList = userService.lambdaQuery()
+            .select(User::getId, User::getNickName, User::getHeadImageThumb, User::getIsManualApprove)
+            .in(User::getId, userId, friendId)
+            .eq(User::getCompanyId, session.getCompanyId())
+            .list();
+        User sender = null;
+        User receiver = null;
+        for (User user : userList) {
+            if (Objects.equals(user.getId(), userId)) {
+                sender = user;
+            }
+            if (Objects.equals(user.getId(), friendId)) {
+                receiver = user;
+            }
+        }
+        if (receiver == null) {
+            throw new GlobalException("好友不存在");
+        }
+        FriendRequest request = new FriendRequest();
         request.setSendId(userId);
         request.setSendNickName(sender.getNickName());
         request.setSendHeadImage(sender.getHeadImageThumb());
@@ -148,7 +157,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
         if (!receiver.getIsManualApprove()) {
             // 自动通过好友
-            friendService.addFriend(friendId, userId, dto.getRemark());
+            friendService.addFriend(session.getCompanyId(), friendId, userId, dto.getRemark());
             // 推送同意消息
             vo.setStatus(FriendRequestStatus.APPROVED.getCode());
         } else {
@@ -156,7 +165,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             this.saveOrUpdate(request);
             vo.setId(request.getId());
             // 推送添加请求
-            sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), friendId, MessageType.FRIEND_REQ_APPLY, vo, false, true);
+            sendRequestMessage(session.getUserId(), session.getTerminal(), friendId, MessageType.FRIEND_REQ_APPLY, vo, false, true);
         }
         // 增加每日申请好友计数
         incrementDailyApplyCount(userId);
@@ -174,13 +183,16 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             throw new GlobalException("该请求已处理");
         }
         // 添加好友
-        friendService.addFriend(session.getUserId(), request.getSendId(), request.getRemark());
+        friendService.addFriend(session.getCompanyId(), session.getUserId(), request.getSendId(), request.getRemark());
         // 更新状态
+        this.lambdaUpdate()
+            .eq(FriendRequest::getId, id)
+            .set(FriendRequest::getStatus, FriendRequestStatus.APPROVED.getCode())
+            .update();
         request.setStatus(FriendRequestStatus.APPROVED.getCode());
-        this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_APPROVE, vo, true, false);
+        sendRequestMessage(session.getUserId(), session.getTerminal(), request.getSendId(), MessageType.FRIEND_REQ_APPROVE, vo, true, false);
     }
 
     @Override
@@ -194,11 +206,14 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             throw new GlobalException("该请求已处理");
         }
         // 更新状态
+        this.lambdaUpdate()
+            .eq(FriendRequest::getId, id)
+            .set(FriendRequest::getStatus, FriendRequestStatus.REJECTED.getCode())
+            .update();
         request.setStatus(FriendRequestStatus.REJECTED.getCode());
-        this.updateById(request);
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), request.getSendId(), MessageType.FRIEND_REQ_REJECT, vo, true, false);
+        sendRequestMessage(session.getUserId(), session.getTerminal(), request.getSendId(), MessageType.FRIEND_REQ_REJECT, vo, true, false);
     }
 
     @Override
@@ -216,14 +231,14 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
                 .eq(FriendRequest::getId, id)
                 .set(FriendRequest::getStatus, FriendRequestStatus.RECALL.getCode())
                 .update();
+        request.setStatus(FriendRequestStatus.RECALL.getCode());
         // 推送同意消息
         FriendRequestVO vo = BeanUtils.copyProperties(request, FriendRequestVO.class);
-        sendRequestMessage(session.getUserId(), session.getTerminal(), session.getCompanyId(), request.getRecvId(), MessageType.FRIEND_REQ_RECALL, vo, true, true);
+        sendRequestMessage(session.getUserId(), session.getTerminal(), request.getRecvId(), MessageType.FRIEND_REQ_RECALL, vo, true, true);
     }
 
-    void sendRequestMessage(Long userId, Integer terminal, Long companyId, Long fid, MessageType type, FriendRequestVO vo, Boolean sendToSelf, Boolean sendResult) {
+    void sendRequestMessage(Long userId, Integer terminal, Long fid, MessageType type, FriendRequestVO vo, Boolean sendToSelf, Boolean sendResult) {
         PrivateMessageVO msgInfo = new PrivateMessageVO();
-        msgInfo.setCompanyId(companyId);
         msgInfo.setSendId(userId);
         msgInfo.setRecvId(fid);
         msgInfo.setSendTime(vo.getApplyTime());

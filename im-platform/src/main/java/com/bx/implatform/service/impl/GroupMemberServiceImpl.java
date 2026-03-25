@@ -58,8 +58,9 @@ public class GroupMemberServiceImpl extends ServiceImpl<GroupMemberMapper, Group
     }
 
     @Override
-    public List<GroupMember> findByGroupAndUserIds(Long groupId, List<Long> userIds) {
+    public List<GroupMember> findByGroupAndUserIds(Long groupId, List<Long> userIds, SFunction<GroupMember, ?>... columns) {
         LambdaQueryWrapper<GroupMember> wrapper = Wrappers.lambdaQuery();
+        wrapper.select(ArrayUtil.isNotEmpty(columns), columns);
         wrapper.eq(GroupMember::getGroupId, groupId);
         wrapper.in(GroupMember::getUserId, userIds);
         return this.list(wrapper);

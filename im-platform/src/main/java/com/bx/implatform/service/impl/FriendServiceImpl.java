@@ -60,18 +60,20 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
 
     @Override
     public List<Friend> findAllFriends() {
-        Long userId = SessionContext.getSession().getUserId();
+        UserSession session = SessionContext.getSession();
         LambdaQueryWrapper<Friend> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(Friend::getUserId, userId);
+        wrapper.eq(Friend::getUserId, session.getUserId());
+        wrapper.eq(Friend::getCompanyId, session.getCompanyId());
         return this.list(wrapper);
     }
 
     @Override
-    public List<Friend> findByFriendIds(List<Long> friendIds) {
+    public List<Friend> findByFriendIds(List<Long> friendIds, Long companyId) {
         Long userId = SessionContext.getSession().getUserId();
         LambdaQueryWrapper<Friend> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(Friend::getUserId, userId);
         wrapper.in(Friend::getFriendId, friendIds);
+        wrapper.eq(Friend::getCompanyId, companyId);
         wrapper.eq(Friend::getDeleted, false);
         return this.list(wrapper);
     }
@@ -87,19 +89,19 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     @RedisLock(prefixKey = RedisKey.IM_LOCK_FRIEND_ADD, key = "#userId+':'+#friendId")
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public void addFriend(Long userId, Long friendId, String applyRemark) {
+    public void addFriend(Long companyId, Long userId, Long friendId, String applyRemark) {
         if (friendId.equals(userId)) {
             throw new GlobalException("不允许添加自己为好友");
         }
         // 互相绑定好友关系
         FriendServiceImpl proxy = (FriendServiceImpl) AopContext.currentProxy();
-        proxy.bindFriend(userId, friendId);
-        proxy.bindFriend(friendId, userId);
+        proxy.bindFriend(companyId, userId, friendId);
+        proxy.bindFriend(companyId, friendId, userId);
         // 推送添加好友提示
-        sendAddTipMessage(userId, friendId);
+        sendAddTipMessage(companyId, userId, friendId);
         // 模拟对方向自己推送打招呼消息
         if (StrUtil.isNotEmpty(applyRemark)) {
-            sendTextMessage(friendId, userId, applyRemark);
+            sendTextMessage(companyId, friendId, userId, applyRemark);
         }
         log.info("添加好友，用户id:{},好友id:{}", userId, friendId);
     }
@@ -107,13 +109,15 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void delFriend(Long friendId) {
-        Long userId = SessionContext.getSession().getUserId();
+        UserSession session = SessionContext.getSession();
+        Long userId = session.getUserId();
+        Long companyId = session.getCompanyId();
         // 互相解除好友关系，走代理清理缓存
         FriendServiceImpl proxy = (FriendServiceImpl) AopContext.currentProxy();
-        proxy.unbindFriend(userId, friendId);
-        proxy.unbindFriend(friendId, userId);
+        proxy.unbindFriend(companyId, userId, friendId);
+        proxy.unbindFriend(companyId, friendId, userId);
         // 推送解除好友提示
-        sendDelTipMessage(friendId);
+        sendDelTipMessage(session.getCompanyId(), friendId);
         log.info("删除好友，用户id:{},好友id:{}", userId, friendId);
     }
 
@@ -135,23 +139,26 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
      */
     @Override
     @CacheEvict(key = "#userId+':'+#friendId")
-    public void bindFriend(Long userId, Long friendId) {
+    public void bindFriend(Long companyId, Long userId, Long friendId) {
         QueryWrapper<Friend> wrapper = new QueryWrapper<>();
         wrapper.lambda().eq(Friend::getUserId, userId).eq(Friend::getFriendId, friendId);
         Friend friend = this.getOne(wrapper);
         if (Objects.isNull(friend)) {
             friend = new Friend();
         }
+        friend.setCompanyId(companyId);
         friend.setUserId(userId);
         friend.setFriendId(friendId);
-        User friendInfo = userMapper.selectById(friendId);
+        User friendInfo = userMapper.selectOne(Wrappers.<User>lambdaQuery()
+            .select(User::getId, User::getHeadImageThumb, User::getNickName, User::getCompanyName)
+            .eq(User::getId, userId));
         friend.setFriendHeadImage(friendInfo.getHeadImageThumb());
         friend.setFriendNickName(friendInfo.getNickName());
         friend.setFriendCompanyName(friendInfo.getCompanyName());
         friend.setDeleted(false);
         this.saveOrUpdate(friend);
-        // 推送好友变化信息s
-        sendAddFriendMessage(userId, friendId, friend);
+        // 推送好友变化信息
+        sendAddFriendMessage(companyId, userId, friendId, friend);
     }
 
     /**
@@ -161,7 +168,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
      * @param friendId 好友的用户id
      */
     @CacheEvict(key = "#userId+':'+#friendId")
-    public void unbindFriend(Long userId, Long friendId) {
+    public void unbindFriend(Long companyId, Long userId, Long friendId) {
         // 逻辑删除
         LambdaUpdateWrapper<Friend> wrapper = Wrappers.lambdaUpdate();
         wrapper.eq(Friend::getUserId, userId);
@@ -169,7 +176,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         wrapper.set(Friend::getDeleted, true);
         this.update(wrapper);
         // 推送好友变化信息
-        sendDelFriendMessage(userId, friendId);
+        sendDelFriendMessage(companyId, userId, friendId);
     }
 
     @Override
@@ -196,8 +203,8 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         if (Objects.isNull(friend)) {
             throw new GlobalException("对方不是您的好友");
         }
+        this.lambdaUpdate().eq(Friend::getId, friend.getId()).set(Friend::getRemarkNickName, dto.getRemarkNickName()).update();
         friend.setRemarkNickName(dto.getRemarkNickName());
-        this.updateById(friend);
         List<IMTerminalType> terminals = imClient.getOnlineTerminal(session.getUserId());
         return convert(friend, terminals);
     }
@@ -228,7 +235,6 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         // 广播给所有好友
         for (Long fid : fids) {
             PrivateMessageVO msgInfo = new PrivateMessageVO();
-            msgInfo.setCompanyId();
             msgInfo.setSendId(userId);
             msgInfo.setRecvId(fid);
             msgInfo.setSendTime(new Date());
@@ -275,7 +281,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
             redisTemplate.opsForSet().remove(key, dto.getFriendId());
         }
         // 推送同步消息
-        sendSyncDndMessage(dto.getFriendId(), dto.getIsDnd());
+        sendSyncDndMessage(session.getCompanyId(), dto.getFriendId(), dto.getIsDnd());
     }
 
     @Override
@@ -327,9 +333,10 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         return vo;
     }
 
-    void sendAddFriendMessage(Long userId, Long friendId, Friend friend) {
+    private void sendAddFriendMessage(Long companyId, Long userId, Long friendId, Friend friend) {
         // 推送好友状态信息
         PrivateMessageVO msgInfo = new PrivateMessageVO();
+        msgInfo.setCompanyId(companyId);
         msgInfo.setSendId(friendId);
         msgInfo.setRecvId(userId);
         msgInfo.setSendTime(new Date());
@@ -345,9 +352,10 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         imClient.sendPrivateMessage(sendMessage);
     }
 
-    void sendDelFriendMessage(Long userId, Long friendId) {
+    void sendDelFriendMessage(Long companyId, Long userId, Long friendId) {
         // 推送好友状态信息
         PrivateMessageVO msgInfo = new PrivateMessageVO();
+        msgInfo.setCompanyId(companyId);
         msgInfo.setSendId(friendId);
         msgInfo.setRecvId(userId);
         msgInfo.setSendTime(new Date());
@@ -360,10 +368,11 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         imClient.sendPrivateMessage(sendMessage);
     }
 
-    void sendSyncDndMessage(Long friendId, Boolean isDnd) {
+    void sendSyncDndMessage(Long companyId, Long friendId, Boolean isDnd) {
         // 同步免打扰状态到其他终端
         UserSession session = SessionContext.getSession();
         PrivateMessageVO msgInfo = new PrivateMessageVO();
+        msgInfo.setCompanyId(companyId);
         msgInfo.setSendId(session.getUserId());
         msgInfo.setRecvId(friendId);
         msgInfo.setSendTime(new Date());
@@ -392,8 +401,9 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         imClient.sendPrivateMessage(sendMessage);
     }
 
-    void sendAddTipMessage(Long userId, Long friendId) {
+    void sendAddTipMessage(Long companyId, Long userId, Long friendId) {
         PrivateMessage msg = new PrivateMessage();
+        msg.setCompanyId(companyId);
         msg.setSendId(userId);
         msg.setRecvId(friendId);
         msg.setContent("你们已成为好友，现在可以开始聊天了");
@@ -414,10 +424,11 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         imClient.sendPrivateMessage(sendMessage);
     }
 
-    void sendDelTipMessage(Long friendId) {
+    void sendDelTipMessage(Long companyId, Long friendId) {
         UserSession session = SessionContext.getSession();
         // 推送好友状态信息
         PrivateMessage msg = new PrivateMessage();
+        msg.setCompanyId(companyId);
         msg.setSendId(session.getUserId());
         msg.setRecvId(friendId);
         msg.setSendTime(new Date());
@@ -434,8 +445,9 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         imClient.sendPrivateMessage(sendMessage);
     }
 
-    void sendTextMessage(Long sendId, Long recvId, String content) {
+    void sendTextMessage(Long companyId, Long sendId, Long recvId, String content) {
         PrivateMessage msg = new PrivateMessage();
+        msg.setCompanyId(companyId);
         msg.setSendId(sendId);
         msg.setRecvId(recvId);
         msg.setContent(content);

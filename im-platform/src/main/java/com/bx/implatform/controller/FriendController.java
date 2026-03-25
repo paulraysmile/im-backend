@@ -30,7 +30,6 @@ public class FriendController {
         return ResultUtils.success(friendService.findFriends());
     }
 
-
     @PutMapping("/update/remark")
     @Operation(summary = "修改好友备注", description = "修改好友备注")
     public Result<FriendVO> modifyRemark(@Valid @RequestBody FriendRemarkDTO dto) {

@@ -4,11 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-/**
- * @author Blue
- * @version 1.0
- * @date 2025-02-23
- */
 @Data
 @Schema(description = "群聊全员禁言")
 public class GroupMutedDTO {

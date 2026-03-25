@@ -64,7 +64,7 @@ public class WebrtcGroupServiceImpl implements WebrtcGroupService {
     @Override
     public void setup(WebrtcGroupSetupDTO dto) {
         UserSession userSession = SessionContext.getSession();
-        Group group = groupService.getAndCheckById(dto.getGroupId());
+        Group group = groupService.getAndCheckById(dto.getGroupId(), userSession.getCompanyId());
         GroupMember member = groupMemberService.findByGroupAndUserId(dto.getGroupId(), userSession.getUserId());
         if (group.getIsAllMuted() && !group.getOwnerId().equals(userSession.getUserId()) && member.getIsManager()) {
             throw new GlobalException("本群已开启全员禁言模式,无法发起呼叫");
@@ -267,12 +267,13 @@ public class WebrtcGroupServiceImpl implements WebrtcGroupService {
     @Override
     public void invite(WebrtcGroupInviteDTO dto) {
         UserSession userSession = SessionContext.getSession();
-        Group group = groupService.getAndCheckById(dto.getGroupId());
-        WebrtcGroupSession webrtcSession = getWebrtcSession(dto.getGroupId());
+        Long groupId = dto.getGroupId();
+        Group group = groupService.getAndCheckById(groupId, userSession.getCompanyId());
+        WebrtcGroupSession webrtcSession = getWebrtcSession(groupId);
         if (webrtcSession.getUserInfos().size() + dto.getUserInfos().size() > webrtcProps.getMaxChannel()) {
             throw new GlobalException("最多支持" + webrtcProps.getMaxChannel() + "人进行通话");
         }
-        if (!groupMemberService.isInGroup(dto.getGroupId(), getRecvIds(dto.getUserInfos()))) {
+        if (!groupMemberService.isInGroup(groupId, getRecvIds(dto.getUserInfos()))) {
             throw new GlobalException("部分用户不在群聊中");
         }
         IMUserInfo inviter = new IMUserInfo(userSession.getUserId(), userSession.getTerminal());
@@ -293,35 +294,33 @@ public class WebrtcGroupServiceImpl implements WebrtcGroupService {
                 busyUserIds.add(userInfo.getId());
             } else {
                 // 标记用户进入忙线状态
-                userStateUtils.inGroupRtc(userInfo.getId(), dto.getGroupId());
+                userStateUtils.inGroupRtc(userInfo.getId(), groupId);
                 newUserInfos.add(userInfo);
             }
         }
         // 更新会话信息
         userInfos.addAll(newUserInfos);
-        saveWebrtcSession(dto.getGroupId(), webrtcSession);
+        saveWebrtcSession(groupId, webrtcSession);
         if (!busyUserIds.isEmpty()) {
             WebrtcGroupFailedVO vo = new WebrtcGroupFailedVO();
             vo.setUserIds(busyUserIds);
             vo.setReason("用户正在忙");
             // 向邀请者回复忙
-            sendRtcMessage2(MessageType.RTC_GROUP_FAILED, dto.getGroupId(), inviter, JSON.toJSONString(vo));
+            sendRtcMessage2(MessageType.RTC_GROUP_FAILED, groupId, inviter, JSON.toJSONString(vo));
         }
         // 向被邀请的发起呼叫
         List<Long> newUserIds = getRecvIds(newUserInfos);
-        sendRtcMessage1(MessageType.RTC_GROUP_SETUP, dto.getGroupId(), newUserIds, JSON.toJSONString(userInfos), false);
+        sendRtcMessage1(MessageType.RTC_GROUP_SETUP, groupId, newUserIds, JSON.toJSONString(userInfos), false);
         // 向已在通话中的用户同步新邀请的用户信息
-        sendRtcMessage1(MessageType.RTC_GROUP_INVITE, dto.getGroupId(), userIds, JSON.toJSONString(newUserInfos),
-            false);
+        sendRtcMessage1(MessageType.RTC_GROUP_INVITE, groupId, userIds, JSON.toJSONString(newUserInfos), false);
         // 推送通话信息
-        sendRTCInfo(dto.getGroupId());
+        sendRTCInfo(groupId);
         // 离线用户进行通知
         WebrtcUserInfo mineInfo = findUserInfo(webrtcSession, userSession.getUserId());
         rtcGroupNotifyService.setUp(group, mineInfo, userIds);
         // 超时未接通检测
-        detectTimeout(webrtcSession.getChatId(), dto.getGroupId(), inviter, newUserIds);
-        log.info("邀请加入群通话,userId:{},groupId:{},邀请用户:{}", userSession.getUserId(), dto.getGroupId(),
-            newUserIds);
+        detectTimeout(webrtcSession.getChatId(), groupId, inviter, newUserIds);
+        log.info("邀请加入群通话,userId:{},groupId:{},邀请用户:{}", userSession.getUserId(), groupId, newUserIds);
     }
 
     @RedisLock(prefixKey = RedisKey.IM_LOCK_RTC_GROUP, key = "#groupId")

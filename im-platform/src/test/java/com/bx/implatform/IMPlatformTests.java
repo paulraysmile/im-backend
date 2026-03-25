@@ -4,24 +4,23 @@ import cn.hutool.core.util.IdUtil;
 import com.bx.implatform.entity.GroupMessage;
 import com.bx.implatform.entity.PrivateMessage;
 import com.bx.implatform.entity.User;
-import com.bx.implatform.service.GroupMessageService;
-import com.bx.implatform.service.PrivateMessageService;
+import com.bx.implatform.service.GroupMessageCompanyService;
+import com.bx.implatform.service.PrivateMessageCompanyService;
 import com.bx.implatform.service.UserService;
 import jakarta.annotation.Resource;
+import java.util.Date;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import java.util.Date;
 
 @Slf4j
 @SpringBootTest
 public class IMPlatformTests {
 
     @Resource
-    private PrivateMessageService privateMessageService;
+    private PrivateMessageCompanyService privateMessageService;
     @Resource
-    private GroupMessageService groupMessageService;
+    private GroupMessageCompanyService groupMessageService;
     @Resource
     private UserService userService;
 

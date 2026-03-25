@@ -70,8 +70,8 @@ public class PrivateMessageCompanyServiceImpl extends ServiceImpl<PrivateMessage
         }
         // 保存消息
         PrivateMessage msg = BeanUtils.copyProperties(dto, PrivateMessage.class);
-        msg.setSendId(userId);
         msg.setCompanyId(companyId);
+        msg.setSendId(userId);
         msg.setStatus(MessageStatus.PENDING.code());
         msg.setSendTime(new Date());
         // 过滤内容中的敏感词
@@ -101,7 +101,7 @@ public class PrivateMessageCompanyServiceImpl extends ServiceImpl<PrivateMessage
         sendMessage.setSendResult(true);
         imClient.sendPrivateMessage(sendMessage);
         String ip = JakartaServletUtil.getClientIP(request);
-        log.info("发送私聊消息，ip:{},sendId:{},recvId:{},content:{}", ip, userId, dto.getRecvId(), dto.getContent());
+        log.debug("发送私聊消息，ip:{},sendId:{},recvId:{},content:{}", ip, userId, dto.getRecvId(), dto.getContent());
         return msgInfo;
     }
 
@@ -149,7 +149,7 @@ public class PrivateMessageCompanyServiceImpl extends ServiceImpl<PrivateMessage
         sendMessage.setRecvId(recvId);
         sendMessage.setData(msgInfo);
         imClient.sendPrivateMessage(sendMessage);
-        log.info("撤回私聊消息，sendId:{},recvId:{}", userId, recvId);
+        log.debug("撤回私聊消息，sendId:{},recvId:{}", userId, recvId);
         return msgInfo;
     }
 
@@ -239,7 +239,7 @@ public class PrivateMessageCompanyServiceImpl extends ServiceImpl<PrivateMessage
         } catch (Exception e) {
             log.error("消息状态修改失败,userId:{},friendId:{}", userId, friendId, e);
         }
-        log.info("消息已读，接收方id:{},发送方id:{}", userId, friendId);
+        log.debug("消息已读，接收方id:{},发送方id:{}", userId, friendId);
     }
 
     @Override

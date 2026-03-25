@@ -1,6 +1,5 @@
 package com.bx.implatform.listener;
 
-import com.bx.imclient.IMClient;
 import com.bx.imclient.annotation.IMListener;
 import com.bx.imclient.listener.EventListener;
 import com.bx.imcommon.enums.IMEventType;
@@ -31,10 +30,7 @@ import java.util.List;
 @AllArgsConstructor
 public class UserEventListener implements EventListener {
 
-    private final IMClient imClient;
-
     private final FriendService friendService;
-
     private final UserStateUtils userStateUtils;
     private final WebrtcPrivateService webrtcPrivateService;
     private final WebrtcGroupService webrtcGroupService;

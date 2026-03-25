@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class IMSessionInfo {
+
     /**
      * 用户id
      */

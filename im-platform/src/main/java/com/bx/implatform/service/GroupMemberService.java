@@ -26,7 +26,7 @@ public interface GroupMemberService extends IService<GroupMember> {
      * @param userIds 用户id
      * @return 群聊成员信息
      */
-    List<GroupMember> findByGroupAndUserIds(Long groupId, List<Long> userIds);
+    List<GroupMember> findByGroupAndUserIds(Long groupId, List<Long> userIds, SFunction<GroupMember, ?>... columns);
 
     /**
      * 根据用户id查询群聊成员

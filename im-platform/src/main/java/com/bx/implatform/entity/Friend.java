@@ -26,6 +26,11 @@ public class Friend {
     private Long id;
 
     /**
+     * 归属企业id
+     */
+    private Long companyId;
+
+    /**
      * 用户id
      */
     private Long userId;
