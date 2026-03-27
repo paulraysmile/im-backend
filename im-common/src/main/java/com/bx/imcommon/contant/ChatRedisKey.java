@@ -13,6 +13,11 @@ public final class ChatRedisKey {
     public static final String  IM_USER_SERVER_ID = "chat:user:server_id";
 
     /**
+     * 用户ID所连接的设备
+     */
+    public static final String IM_USER_DEVICE_ID = "chat:user:device_id";
+
+    /**
      * 系统消息队列
      */
     public static final String IM_MESSAGE_SYSTEM_QUEUE = "chat:msg:sys";

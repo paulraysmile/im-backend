@@ -11,6 +11,7 @@ import com.bx.imserver.constant.ChannelAttrKey;
 import com.bx.imserver.netty.processor.AbstractMessageProcessor;
 import com.bx.imserver.netty.processor.ProcessorFactory;
 import com.bx.imserver.util.SpringContextHolder;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleState;
@@ -64,15 +65,16 @@ public class IMChannelHandler extends SimpleChannelInboundHandler<IMSendInfo> {
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
+        Channel channel = ctx.channel();
         AttributeKey<Long> userIdAttr = AttributeKey.valueOf(ChannelAttrKey.USER_ID);
-        Long userId = ctx.channel().attr(userIdAttr).get();
+        Long userId = channel.attr(userIdAttr).get();
         AttributeKey<Integer> terminalAttr = AttributeKey.valueOf(ChannelAttrKey.TERMINAL_TYPE);
-        Integer terminal = ctx.channel().attr(terminalAttr).get();
+        Integer terminal = channel.attr(terminalAttr).get();
         ChannelHandlerContext context = UserChannelCtxMap.getChannelCtx(userId, terminal);
         // 判断一下，避免异地登录导致的误删
-        if (context != null && ctx.channel().id().equals(context.channel().id())) {
+        if (context != null && channel.id().equals(context.channel().id())) {
             // 移除channel
-            UserChannelCtxMap.removeChannelCtx(userId, terminal);
+            UserChannelCtxMap.removeChannelCtx(userId, terminal, channel.id().asShortText());
             // 用户下线
             RedisMQTemplate redisTemplate = SpringContextHolder.getBean(RedisMQTemplate.class);
             String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
@@ -83,7 +85,7 @@ public class IMChannelHandler extends SimpleChannelInboundHandler<IMSendInfo> {
             event.setUserInfo(new IMUserInfo(userId,terminal));
             key = ChatRedisKey.IM_USER_EVENT_QUEUE;
             redisTemplate.opsForList().rightPush(key, event);
-            log.info("断开连接,userId:{},终端类型:{},{}", userId, terminal, ctx.channel().id().asLongText());
+            log.info("断开连接,userId:{},终端类型:{},{}", userId, terminal, channel.id().asLongText());
         }
     }
 

@@ -36,13 +36,12 @@ public class AuthInterceptor implements HandlerInterceptor {
             log.warn("未登录，url:{}", request.getRequestURI());
             throw new GlobalException(ResultCode.NO_LOGIN);
         }
-        String strJson = JwtUtil.getInfo(token);
-        UserSession userSession = JSON.parseObject(strJson, UserSession.class);
         // 验证 token
         if (!JwtUtil.checkSign(token, jwtProperties.getAccessTokenSecret())) {
-            log.warn("token已失效，用户:{}", userSession.getUserName());
             throw new GlobalException(ResultCode.INVALID_TOKEN);
         }
+        String strJson = JwtUtil.getInfo(token);
+        UserSession userSession = JSON.parseObject(strJson, UserSession.class);
         // 存放session
         SessionContext.setSession(userSession);
         return true;

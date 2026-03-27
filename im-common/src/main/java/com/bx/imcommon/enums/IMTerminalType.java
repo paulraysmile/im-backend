@@ -13,6 +13,7 @@ public enum IMTerminalType {
      * web
      */
     WEB(0, "web"),
+
     /**
      * app
      */

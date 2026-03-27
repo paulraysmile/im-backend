@@ -459,8 +459,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, Group> implements
             GroupMember member = groupMemberService.findByGroupAndUserId(qrcode.getGroupId(), qrcode.getUserId(),
                 GroupMember::getId, GroupMember::getUserNickName, GroupMember::getRemarkNickName
             );
-            content = String.format("%s通过%s分享的二维码加入了群聊",
-                formatUserMark(userId, session.getNickName()), formatUserMark(member.getShowNickName(), qrcode.getUserId()));
+            content = String.format("%s通过%s分享的二维码加入了群聊", formatUserMark(userId, session.getNickName()), formatUserMark(member.getShowNickName(), qrcode.getUserId()));
         }
         // 检查用户是否已在群聊中
         GroupMember member = groupMemberService.findByGroupAndUserId(groupId, userId);

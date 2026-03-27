@@ -35,6 +35,11 @@ public class User {
     private String companyName;
 
     /**
+     * 组id
+     */
+    private Long groupId;
+
+    /**
      * 用户名
      */
     private String userName;

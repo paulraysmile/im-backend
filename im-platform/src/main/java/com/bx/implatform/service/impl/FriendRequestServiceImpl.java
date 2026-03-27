@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
  * @author Blue
  * @version 1.0
  */
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -79,7 +78,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
         UserSession session = SessionContext.getSession();
         Long userId = session.getUserId();
         // 检查每日添加好友数量限制，防止脚本恶意添加
-        checkDailyApplyLimit(userId);
+        //checkDailyApplyLimit(userId);
         Long friendId = dto.getFriendId();
         if (userId.equals(friendId)) {
             throw new GlobalException("不允许添加自己为好友");
@@ -112,19 +111,19 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             throw new GlobalException("您已在对方的好友申请列表中,无需重复申请");
         }
         // 对方申请列表数量上限校验
-        LambdaQueryWrapper<FriendRequest> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
-        wrapper.eq(FriendRequest::getRecvId, friendId);
-        if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
-            throw new GlobalException("对方的好友申请列表已满");
-        }
+        //LambdaQueryWrapper<FriendRequest> wrapper = Wrappers.lambdaQuery();
+        //wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
+        //wrapper.eq(FriendRequest::getRecvId, friendId);
+        //if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
+        //    throw new GlobalException("对方的好友申请列表已满");
+        //}
         // 自己的申请列表上限校验
-        wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
-        wrapper.eq(FriendRequest::getSendId, userId);
-        if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
-            throw new GlobalException("您的好友申请列表已满");
-        }
+        //wrapper = Wrappers.lambdaQuery();
+        //wrapper.eq(FriendRequest::getStatus, FriendRequestStatus.PENDING.getCode());
+        //wrapper.eq(FriendRequest::getSendId, userId);
+        //if (this.count(wrapper) >= Constant.MAX_PRIEND_APPLY) {
+        //    throw new GlobalException("您的好友申请列表已满");
+        //}
         // 新请求
         List<User> userList = userService.lambdaQuery()
             .select(User::getId, User::getNickName, User::getHeadImageThumb, User::getIsManualApprove)
@@ -168,7 +167,7 @@ public class FriendRequestServiceImpl extends ServiceImpl<FriendRequestMapper, F
             sendRequestMessage(session.getUserId(), session.getTerminal(), friendId, MessageType.FRIEND_REQ_APPLY, vo, false, true);
         }
         // 增加每日申请好友计数
-        incrementDailyApplyCount(userId);
+        //incrementDailyApplyCount(userId);
         return vo;
     }
 

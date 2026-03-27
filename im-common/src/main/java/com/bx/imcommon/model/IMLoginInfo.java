@@ -14,4 +14,5 @@ public class IMLoginInfo {
      * 设备id
      */
     private String devId;
+
 }
