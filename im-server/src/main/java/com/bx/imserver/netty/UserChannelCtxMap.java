@@ -12,14 +12,14 @@ public class UserChannelCtxMap {
 
     private static Map<Long, ChannelHandlerContext> appChannelMap = new ConcurrentHashMap();
 
-    private static Map<Long, Map<Integer, List<ChannelHandlerContext>>> webChannelMap = new ConcurrentHashMap();
+    private static Map<Long, List<ChannelHandlerContext>> webChannelMap = new ConcurrentHashMap();
 
     public static void addAppChannelCtx(Long userId, ChannelHandlerContext ctx) {
         appChannelMap.put(userId, ctx);
     }
 
-    public static void addWebChannelCtx(Long userId, Integer terminal, ChannelHandlerContext ctx) {
-        webChannelMap.computeIfAbsent(userId, key -> new ConcurrentHashMap()).computeIfAbsent(terminal, k -> new CopyOnWriteArrayList<>()).add(ctx);
+    public static void addWebChannelCtx(Long userId, ChannelHandlerContext ctx) {
+        webChannelMap.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(ctx);
     }
 
     public static void removeAppChannelCtx(Long userId) {

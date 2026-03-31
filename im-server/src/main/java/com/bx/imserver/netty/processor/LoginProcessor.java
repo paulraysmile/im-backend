@@ -66,11 +66,16 @@ public class LoginProcessor extends AbstractMessageProcessor<IMLoginInfo> {
             // 绑定用户和channel
             UserChannelCtxMap.addAppChannelCtx(userId, ctx);
             // 在redis上记录每个user的channelId，15秒没有心跳，则自动过期
-            String key = String.join(":", ChatRedisKey.IM_USER_APP_SERVER_ID, userId.toString(), terminal.toString());
+            String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
             redisMQTemplate.opsForValue().set(key, IMServerGroup.serverId, ChatConstant.ONLINE_TIMEOUT_SECOND, TimeUnit.SECONDS);
         } else {
             // 绑定用户和channel
             UserChannelCtxMap.addWebChannelCtx(userId, terminal, ctx);
+            String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
+            redisMQTemplate.opsForValue().set(key, IMServerGroup.serverId, ChatConstant.ONLINE_TIMEOUT_SECOND, TimeUnit.SECONDS);
+
+
+
             // 在redis上记录每个user的channelId，15秒没有心跳，则自动过期
             String key = String.join(":", ChatRedisKey.IM_USER_WEB_SERVER_ID, userId.toString(), terminal.toString());
             redisMQTemplate.opsForSet().add(key, IMServerGroup.serverId);

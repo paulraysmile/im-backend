@@ -10,7 +10,7 @@ public final class ChatRedisKey {
     /**
      * APP用户ID所连接的IM-server的ID
      */
-    public static final String IM_USER_APP_SERVER_ID = "chat:user_app:server_id";
+    public static final String IM_USER_SERVER_ID = "chat:user:server_id";
 
     public static final String IM_USER_WEB_SERVER_ID = "chat:user_web:server_id";
 
