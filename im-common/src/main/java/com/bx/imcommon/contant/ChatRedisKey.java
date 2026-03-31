@@ -5,17 +5,19 @@ public final class ChatRedisKey {
     /**
      * im-server最大id,从0开始递增
      */
-    public static final String  IM_MAX_SERVER_ID = "chat:max_server_id";
+    public static final String IM_MAX_SERVER_ID = "chat:max_server_id";
 
     /**
-     * 用户ID所连接的IM-server的ID
+     * APP用户ID所连接的IM-server的ID
      */
-    public static final String  IM_USER_SERVER_ID = "chat:user:server_id";
+    public static final String IM_USER_APP_SERVER_ID = "chat:user_app:server_id";
+
+    public static final String IM_USER_WEB_SERVER_ID = "chat:user_web:server_id";
 
     /**
-     * 用户ID所连接的设备
+     * 用户ID所连接的IM-server的次数
      */
-    public static final String IM_USER_DEVICE_ID = "chat:user:device_id";
+    public static final String IM_USER_WEB_SERVER_COUNT = "chat:user_web:server_count";
 
     /**
      * 系统消息队列

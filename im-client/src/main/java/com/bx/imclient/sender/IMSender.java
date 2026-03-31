@@ -32,27 +32,34 @@ public class IMSender {
         // 根据群聊每个成员所连的IM-server，进行分组
         Map<String, IMUserInfo> sendMap = new HashMap<>();
         for (Integer terminal : message.getRecvTerminals()) {
-            message.getRecvIds().forEach(id -> {
-                String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, id.toString(), terminal.toString());
-                sendMap.put(key, new IMUserInfo(id, terminal));
-            });
+            if (IMTerminalType.APP.code().equals(terminal)) {
+                message.getRecvIds().forEach(id -> {
+                    String key = String.join(":", ChatRedisKey.IM_USER_APP_SERVER_ID, id.toString(), terminal.toString());
+                    sendMap.put(key, new IMUserInfo(id, terminal));
+                });
+            } else {
+
+            }
         }
-        // 批量拉取
-        List<Object> serverIds = redisMQTemplate.opsForValue().multiGet(sendMap.keySet());
+
         // 格式:map<服务器id,list<接收方>>
         Map<Integer, List<IMUserInfo>> serverMap = new HashMap<>();
         List<IMUserInfo> offLineUsers = new LinkedList<>();
+
+        // 批量拉取
+        List<Object> serverIds = redisMQTemplate.opsForValue().multiGet(sendMap.keySet());
         int idx = 0;
         for (Map.Entry<String, IMUserInfo> entry : sendMap.entrySet()) {
             Integer serverId = (Integer)serverIds.get(idx++);
             if (!Objects.isNull(serverId)) {
-                List<IMUserInfo> list = serverMap.computeIfAbsent(serverId, o -> new LinkedList<>());
-                list.add(entry.getValue());
+                serverMap.computeIfAbsent(serverId, o -> new LinkedList<>()).add(entry.getValue());
             } else {
                 // 加入离线列表
                 offLineUsers.add(entry.getValue());
             }
         }
+
+
         // 逐个server发送
         for (Map.Entry<Integer, List<IMUserInfo>> entry : serverMap.entrySet()) {
             IMRecvInfo recvInfo = new IMRecvInfo();

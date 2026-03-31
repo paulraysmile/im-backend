@@ -1,8 +1,10 @@
 package com.bx.imserver.netty;
 
+import cn.hutool.core.collection.CollectionUtil;
 import com.bx.imcommon.contant.ChatRedisKey;
 import com.bx.imcommon.enums.IMCmdType;
 import com.bx.imcommon.enums.IMEventType;
+import com.bx.imcommon.enums.IMTerminalType;
 import com.bx.imcommon.model.IMSendInfo;
 import com.bx.imcommon.model.IMUserEvent;
 import com.bx.imcommon.model.IMUserInfo;
@@ -18,6 +20,8 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.AttributeKey;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
 
 /**
  * WebSocket 长连接下 文本帧的处理器
@@ -70,23 +74,41 @@ public class IMChannelHandler extends SimpleChannelInboundHandler<IMSendInfo> {
         Long userId = channel.attr(userIdAttr).get();
         AttributeKey<Integer> terminalAttr = AttributeKey.valueOf(ChannelAttrKey.TERMINAL_TYPE);
         Integer terminal = channel.attr(terminalAttr).get();
-        ChannelHandlerContext context = UserChannelCtxMap.getChannelCtx(userId, terminal);
-        // 判断一下，避免异地登录导致的误删
-        if (context != null && channel.id().equals(context.channel().id())) {
-            // 移除channel
-            UserChannelCtxMap.removeChannelCtx(userId, terminal, channel.id().asShortText());
+        RedisMQTemplate redisTemplate = SpringContextHolder.getBean(RedisMQTemplate.class);
+        if (IMTerminalType.APP.code().equals(terminal)) {
+            ChannelHandlerContext context = UserChannelCtxMap.getAppChannelCtx(userId);
+            // 判断一下，避免异地登录导致的误删
+            if (context != null && ctx.channel().id().equals(context.channel().id())) {
+                // 移除channel
+                UserChannelCtxMap.removeAppChannelCtx(userId);
+                // 用户下线
+                redisTemplate.delete(String.join(":", ChatRedisKey.IM_USER_APP_SERVER_ID, userId.toString(), terminal.toString()));
+            }
+        } else {
+            List<ChannelHandlerContext> contexts = UserChannelCtxMap.getWebChannelCtx(userId, terminal);
+            if (CollectionUtil.isEmpty(contexts)) {
+                return;
+            }
+            contexts.removeIf(context -> ctx.channel().id().equals(context.channel().id()));
             // 用户下线
-            RedisMQTemplate redisTemplate = SpringContextHolder.getBean(RedisMQTemplate.class);
-            String key = String.join(":", ChatRedisKey.IM_USER_SERVER_ID, userId.toString(), terminal.toString());
-            redisTemplate.delete(key);
-            // 推送用户下线事件给业务层
-            IMUserEvent event = new IMUserEvent();
-            event.setEventType(IMEventType.OFFLINE.code());
-            event.setUserInfo(new IMUserInfo(userId,terminal));
-            key = ChatRedisKey.IM_USER_EVENT_QUEUE;
-            redisTemplate.opsForList().rightPush(key, event);
-            log.info("断开连接,userId:{},终端类型:{},{}", userId, terminal, channel.id().asLongText());
+            String key = String.join(":", ChatRedisKey.IM_USER_WEB_SERVER_COUNT, userId.toString(), terminal.toString(), String.valueOf(IMServerGroup.serverId));
+            Long decremented = redisTemplate.opsForValue().decrement(key);
+            if (decremented <= 0) {
+                redisTemplate.delete(key);
+                key = String.join(":", ChatRedisKey.IM_USER_WEB_SERVER_ID, userId.toString(), terminal.toString());
+                redisTemplate.opsForSet().remove(key, IMServerGroup.serverId);
+                Long size = redisTemplate.opsForSet().size(key);
+                if (size <= 0) {
+                    redisTemplate.delete(key);
+                }
+            }
         }
+        // 推送用户下线事件给业务层
+        IMUserEvent event = new IMUserEvent();
+        event.setEventType(IMEventType.OFFLINE.code());
+        event.setUserInfo(new IMUserInfo(userId,terminal));
+        redisTemplate.opsForList().rightPush(ChatRedisKey.IM_USER_EVENT_QUEUE, event);
+        log.info("断开连接,userId:{},终端类型:{},{}", userId, terminal, ctx.channel().id().asLongText());
     }
 
     @Override

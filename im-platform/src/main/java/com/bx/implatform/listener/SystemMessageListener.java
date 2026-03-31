@@ -33,8 +33,7 @@ public class SystemMessageListener implements MessageListener<SystemMessageVO> {
         // 针对APP离线用户进行离线通知
         List<IMSendResult<SystemMessageVO>> notifyResults = new LinkedList<>();
         for (IMSendResult<SystemMessageVO> result : results) {
-            if (result.getCode().equals(IMSendCode.NOT_ONLINE.code()) && result.getReceiver().getTerminal()
-                .equals(IMTerminalType.APP.code())) {
+            if (result.getCode().equals(IMSendCode.NOT_ONLINE.code()) && result.getReceiver().getTerminal().equals(IMTerminalType.APP.code())) {
                 notifyResults.add(result);
             }
         }
